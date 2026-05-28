@@ -1,0 +1,2392 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Filament Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:#0c0c0e; --s1:#141416; --s2:#1c1c20; --s3:#242428; --s4:#2c2c32;
+  --b1:rgba(255,255,255,0.07); --b2:rgba(255,255,255,0.13);
+  --t1:#efefef; --t2:#888896; --t3:#44444e;
+  --acc:#c8f060; --acc-d:rgba(200,240,96,0.12);
+  --red:#ff6b6b; --amber:#ffbe3d; --green:#4ade80;
+  --r:12px; --rs:8px;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--bg);font-family:'Instrument Sans',sans-serif;color:var(--t1);font-size:14px;}
+body{display:flex;flex-direction:column;margin:0 auto;min-height:100vh;}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 16px 11px;position:sticky;top:0;z-index:50;background:var(--bg);border-bottom:1px solid var(--b1);}
+.topbar-title{font-family:'Syne',sans-serif;font-size:17px;font-weight:700;letter-spacing:-0.4px;}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.icon-btn{width:32px;height:32px;border-radius:50%;background:var(--acc);color:#0c0c0e;border:none;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:20px;font-weight:300;line-height:1;transition:transform 0.15s;}
+.icon-btn:active{transform:scale(0.9);}
+.icon-btn.ghost{background:var(--s2);color:var(--t2);border:1px solid var(--b2);}
+
+/* CONTENT */
+.content{flex:1;display:block;overflow-y:auto;padding-bottom:80px;}
+
+/* BOTTOM NAV */
+.bottomnav{position:fixed;bottom:0;left:0;right:0;display:flex;z-index:50;background:#0c0c0e;border-top:1px solid var(--b1);padding-bottom:env(safe-area-inset-bottom);}
+.nav-btn{flex:1;padding:10px 4px 12px;border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;color:var(--t3);font-size:9px;font-family:'Instrument Sans',sans-serif;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;transition:color 0.15s;}
+.nav-btn svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.nav-btn.active{color:var(--acc);}
+
+/* PAGE */
+.page{display:none;}
+.page.active{display:block;}
+
+/* ── TABLE SHELL ── */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;}
+.tbl-wrap::-webkit-scrollbar{height:4px;width:4px;}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--s4);border-radius:4px;}
+
+/* TABLE */
+table{border-collapse:collapse;width:max-content;min-width:100%;}
+thead{position:sticky;top:0;z-index:10;}
+th{background:var(--s2);padding:9px 10px;text-align:left;font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:0.07em;text-transform:uppercase;color:var(--t3);white-space:nowrap;border-bottom:1px solid var(--b2);cursor:pointer;user-select:none;}
+th:hover{color:var(--t2);}
+th.sort-asc::after{content:' ↑';color:var(--acc);}
+th.sort-desc::after{content:' ↓';color:var(--acc);}
+td{padding:8px 10px;border-bottom:1px solid var(--b1);white-space:nowrap;font-size:13px;vertical-align:middle;}
+tr:last-child td{border-bottom:none;}
+tr.done-row td{opacity:0.38;}
+tr.done-row .proj-name-cell{text-decoration:line-through;}
+tbody tr:active{background:var(--s2);}
+
+/* FIXED FIRST COL */
+th:first-child,td:first-child{position:sticky;left:0;z-index:5;background:var(--s1);}
+thead th:first-child{background:var(--s2);z-index:11;}
+tr:nth-child(even) td:first-child{background:var(--s1);}
+
+/* CELL TYPES */
+.cell-name{font-weight:600;color:var(--t1);max-width:160px;overflow:hidden;text-overflow:ellipsis;}
+.cell-num{font-family:'DM Mono',monospace;font-size:12px;color:var(--t2);text-align:right;}
+.cell-num.hi{color:var(--t1);}
+.cell-person{color:var(--t2);font-size:12px;}
+.cell-color{display:flex;align-items:center;gap:5px;}
+.cdot{width:10px;height:10px;border-radius:50%;border:1px solid rgba(255,255,255,0.1);flex-shrink:0;}
+.cell-done{text-align:center;}
+.chk{width:20px;height:20px;border-radius:6px;border:1.5px solid var(--b2);background:var(--s2);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;transition:all 0.15s;}
+.chk.on{background:var(--acc);border-color:var(--acc);}
+.chk svg{width:11px;height:11px;stroke:#0c0c0e;fill:none;stroke-width:2.5;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity 0.15s;}
+.chk.on svg{opacity:1;}
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 7px;border-radius:20px;letter-spacing:0.03em;}
+.badge-acc{background:var(--acc-d);color:var(--acc);}
+.badge-red{background:rgba(255,107,107,0.12);color:var(--red);}
+.badge-amber{background:rgba(255,190,61,0.12);color:var(--amber);}
+.act-btn{width:24px;height:24px;border-radius:6px;background:var(--s3);border:1px solid var(--b1);color:var(--t3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;font-size:11px;transition:all 0.15s;margin-left:3px;}
+.act-btn:hover,.act-btn:active{color:var(--t1);background:var(--s4);}
+.act-btn.del:hover,.act-btn.del:active{color:var(--red);}
+
+/* TABS */
+.tab-bar{display:flex;gap:3px;padding:10px 12px 0;background:var(--bg);flex-shrink:0;}
+.tab-btn{flex:1;padding:7px 8px;border:none;background:var(--s2);color:var(--t2);font-family:'Instrument Sans',sans-serif;font-size:12px;font-weight:600;border-radius:8px 8px 0 0;cursor:pointer;transition:all 0.15s;letter-spacing:0.02em;}
+.tab-btn.active{background:var(--s3);color:var(--t1);}
+
+/* SORT BAR */
+.sort-bar{display:flex;gap:5px;padding:8px 12px;overflow-x:auto;flex-shrink:0;scrollbar-width:none;background:var(--s1);border-bottom:1px solid var(--b1);}
+.sort-bar::-webkit-scrollbar{display:none;}
+.chip{flex-shrink:0;padding:5px 11px;border-radius:20px;font-size:11px;font-weight:600;background:var(--s2);border:1px solid var(--b2);color:var(--t2);cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.chip.active{background:var(--acc);border-color:var(--acc);color:#0c0c0e;}
+
+/* FILAMENT PAGE */
+.scroll-content{flex:1;overflow-y:auto;padding:12px 14px 90px;-webkit-overflow-scrolling:touch;}
+.stat-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+.stat-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:12px 13px;}
+.stat-val{font-family:'Syne',sans-serif;font-size:20px;font-weight:700;color:var(--t1);letter-spacing:-0.4px;}
+.stat-lbl{font-size:10px;color:var(--t3);margin-top:3px;font-weight:600;text-transform:uppercase;letter-spacing:0.07em;}
+.stat-card.hi .stat-val{color:var(--acc);}
+.sec-label{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:0.1em;text-transform:uppercase;margin:16px 0 8px;}
+.sec-label:first-child{margin-top:0;}
+
+/* FILAMENT TABLE CARD */
+.card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);overflow:hidden;margin-bottom:10px;}
+.fil-tbl{width:100%;border-collapse:collapse;}
+.fil-tbl th{background:var(--s2);padding:8px 10px;text-align:left;font-family:'Syne',sans-serif;font-size:9px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--t3);white-space:nowrap;border-bottom:1px solid var(--b2);}
+.fil-tbl td{padding:8px 10px;border-bottom:1px solid var(--b1);font-size:12px;white-space:nowrap;vertical-align:middle;}
+.fil-tbl tr:last-child td{border-bottom:none;}
+.fil-tbl .num{font-family:'DM Mono',monospace;text-align:right;color:var(--t2);}
+.fil-tbl .num.hi{color:var(--t1);}
+.fil-tbl .order-ja{color:var(--red);font-weight:600;}
+.fil-tbl .order-nei{color:var(--t3);}
+.prog{height:3px;background:var(--s4);border-radius:3px;overflow:hidden;margin-top:5px;width:100%;min-width:60px;}
+.prog-fill{height:100%;border-radius:3px;}
+.swatch-cell{display:flex;align-items:center;gap:7px;}
+.swatch{width:12px;height:12px;border-radius:50%;border:1px solid rgba(255,255,255,0.12);flex-shrink:0;}
+
+/* FORMS */
+.form-group{margin-bottom:12px;}
+.form-label{font-size:11px;color:var(--t2);margin-bottom:5px;display:block;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;}
+input[type=text],input[type=number],select,textarea{width:100%;padding:9px 12px;background:var(--s2);border:1px solid var(--b2);border-radius:var(--rs);color:var(--t1);font-family:'Instrument Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.15s;-webkit-appearance:none;appearance:none;}
+input:focus,select:focus{border-color:var(--acc);}
+select{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888896' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;padding-right:30px;}
+select option{background:#1c1c20;}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:10px 14px;border-radius:var(--rs);border:none;cursor:pointer;font-family:'Instrument Sans',sans-serif;font-size:13px;font-weight:600;transition:all 0.15s;}
+.btn:active{transform:scale(0.97);}
+.btn-p{background:var(--acc);color:#0c0c0e;width:100%;}
+.btn-s{background:var(--s2);color:var(--t1);border:1px solid var(--b2);}
+.btn-d{background:rgba(255,107,107,0.1);color:var(--red);border:1px solid rgba(255,107,107,0.2);}
+.btn-sm{padding:6px 11px;font-size:12px;}
+
+/* PALETTE */
+.palette{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:9px;}
+.pal-sw{width:24px;height:24px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:transform 0.15s;}
+.pal-sw:active{transform:scale(1.15);}
+
+/* PERSON TAG */
+.ptag{display:inline-flex;align-items:center;gap:4px;background:var(--s2);border:1px solid var(--b2);border-radius:20px;padding:3px 9px;font-size:11px;}
+.person-chip{display:inline-flex;align-items:center;padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;background:var(--s2);border:1px solid var(--b2);cursor:pointer;transition:all 0.15s;user-select:none;}
+.person-chip:hover{border-color:var(--acc);color:var(--acc);}
+.person-chip.selected{background:rgba(200,240,96,0.15);border-color:rgba(200,240,96,0.5);color:var(--acc);font-weight:600;}
+.spool-size-btn{flex:1;padding:9px;border-radius:var(--rs);border:1px solid var(--b2);background:var(--s2);color:var(--t2);font-family:'Instrument Sans',sans-serif;font-size:14px;font-weight:600;cursor:pointer;transition:all 0.15s;}
+.spool-size-btn.active{background:rgba(200,240,96,0.15);border-color:rgba(200,240,96,0.4);color:var(--acc);}
+.ptag button{background:none;border:none;cursor:pointer;color:var(--t3);font-size:11px;line-height:1;padding:0;}
+
+/* MODAL */
+.dov{display:none;}
+.dov.open{
+  display:flex;
+  position:fixed;
+  top:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:100vw;
+  height:100vh;
+  background:rgba(0,0,0,0.8);
+  z-index:9000;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  box-sizing:border-box;
+}
+.drawer{
+  background:#242428;
+  border:1px solid rgba(255,255,255,0.18);
+  border-radius:16px;
+  padding:22px;
+  width:min(480px,90vw);
+  max-height:82vh;
+  overflow-y:auto;
+  box-shadow:0 32px 80px rgba(0,0,0,0.7);
+  flex-shrink:0;
+}
+.dhandle{display:none;}
+.dtitle{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;letter-spacing:-0.3px;}
+.sep{height:1px;background:var(--b1);margin:16px 0;}
+
+/* SETTINGS */
+.import-box{border:1.5px dashed var(--b2);border-radius:var(--r);padding:18px;text-align:center;cursor:pointer;transition:border-color 0.15s;background:var(--s2);}
+.import-box:hover,.import-box:active{border-color:var(--acc);}
+
+/* TOAST */
+.toast{position:fixed;top:64px;left:50%;transform:translateX(-50%);background:var(--s3);border:1px solid var(--b2);color:var(--t1);padding:9px 16px;border-radius:20px;font-size:12px;font-weight:600;z-index:200;opacity:0;transition:opacity 0.2s;pointer-events:none;white-space:nowrap;max-width:92vw;}
+.toast.show{opacity:1;}
+.empty{text-align:center;padding:40px 16px;color:var(--t3);font-size:13px;line-height:1.6;}
+.filter-chip{flex-shrink:0;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600;background:var(--s2);border:1px solid var(--b2);color:var(--t2);cursor:pointer;white-space:nowrap;transition:all 0.15s;}
+.filter-chip.active{border-color:var(--acc);color:var(--acc);background:rgba(200,240,96,0.1);}
+.filter-chip.person-chip-f.active{border-color:#60c0f0;color:#60c0f0;background:rgba(96,192,240,0.1);}
+/* INLINE EDIT */
+.editing-row td{background:rgba(200,240,96,0.04) !important;padding:3px 6px !important;border-bottom:1px solid rgba(200,240,96,0.15) !important;vertical-align:middle !important;}
+.editing-row{outline:1px solid rgba(200,240,96,0.2);}
+.ie{background:var(--s3);border:1px solid var(--b2);border-radius:4px;color:var(--t1);font-family:'Instrument Sans',sans-serif;font-size:12px;padding:0 6px;outline:none;width:100%;height:24px;line-height:24px;box-sizing:border-box;}
+.ie:focus{border-color:var(--acc);}
+.num-ie{text-align:right !important;font-family:'DM Mono',monospace;}
+.color-inputs{display:flex;gap:2px;}
+.color-inputs .ie{width:50px;flex-shrink:0;font-size:11px;padding:0 4px;}
+.save-ie{background:var(--acc);color:#0c0c0e;border:none;border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cancel-ie{background:var(--s3);color:var(--t2);border:1px solid var(--b2);border-radius:4px;width:24px;height:24px;cursor:pointer;font-size:12px;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+</style>
+</head>
+<body>
+
+<div class="toast" id="toast"></div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="topbar-title" id="topbar-title">Prosjekter</div>
+  <div class="topbar-right">
+    <div class="icon-btn ghost" onclick="renderAll()" style="font-size:15px;">↻</div>
+    <div class="icon-btn" id="add-btn" onclick="openAdd()">＋</div>
+  </div>
+</div>
+
+<!-- PAGES -->
+<div class="content">
+
+  <!-- PROJECTS -->
+  <div class="page active" id="page-projects">
+    <div class="sort-bar">
+      <div class="chip" data-sort="new" onclick="setSort('new',this)">Nyest</div>
+      <div class="chip" data-sort="old" onclick="setSort('old',this)">Eldst</div>
+      <div class="chip active" data-sort="az" onclick="setSort('az',this)">A→Z</div>
+      <div class="chip" data-sort="za" onclick="setSort('za',this)">Z→A</div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="setTab('active',this)">Aktive</button>
+      <button class="tab-btn" onclick="setTab('done',this)">Ferdig</button>
+    </div>
+    <div id="filter-bar" style="display:flex;gap:6px;padding:6px 0 2px;overflow-x:auto;scrollbar-width:none;flex-shrink:0;"></div>
+    <div class="tbl-wrap" id="proj-tbl-wrap">
+      <table id="proj-table">
+        <thead>
+          <tr>
+            <th id="th-name" style="min-width:140px;" onclick="sortCol('name')">Oppskrift</th>
+            <th id="th-person" onclick="sortCol('person')">Til hvem</th>
+            <th id="th-count" style="text-align:right;" onclick="sortCol('count')">Antall</th>
+            <th id="th-c1" onclick="sortCol('c1')" style="cursor:pointer;">Farge</th>
+
+            <th id="th-grams" style="text-align:right;min-width:72px;" onclick="sortCol('grams')">g/stk</th>
+            <th id="th-totalgrams" style="text-align:right;" onclick="sortCol('totalgrams')">Total g</th>
+            <th id="th-done" style="text-align:center;" onclick="sortCol('done')">Ferdig?</th>
+            <th id="th-project" onclick="sortCol('project')">Prosjekt</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="proj-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- FILAMENT -->
+  <div class="page" id="page-filament">
+    <div style="display:flex;gap:3px;padding:10px 14px 0;background:var(--bg);flex-shrink:0;">
+      <button class="tab-btn active" id="ftab-lager" onclick="setFilTab('lager',this)">Lager</button>
+      <button class="tab-btn" id="ftab-forbruk" onclick="setFilTab('forbruk',this)">Forbruk</button>
+    </div>
+    <div class="scroll-content">
+      <div class="stat-grid" id="fil-stats"></div>
+      <div id="fil-lager-section">
+        <div style="display:flex;gap:6px;padding:8px 0 4px;flex-wrap:wrap;">
+          <div class="filter-chip" id="fc-zero" onclick="toggleFilZero()">Skjul antall = 0</div>
+          <div class="filter-chip" id="fc-ja"   onclick="toggleFilOrder('ja')">Bestill: Ja</div>
+          <div class="filter-chip" id="fc-nei"  onclick="toggleFilOrder('nei')">Bestill: Nei</div>
+        </div>
+        <div class="sec-label">Filamentlager</div>
+        <div class="card">
+          <div class="tbl-wrap">
+            <table class="fil-tbl">
+              <thead><tr>
+                <th style="min-width:140px;cursor:pointer;" onclick="sortFilCol('color')">Farge</th>
+                <th style="cursor:pointer;" onclick="sortFilCol('type')">Type</th>
+                <th style="text-align:right;cursor:pointer;" onclick="sortFilCol('count')">Antall</th>
+
+                <th style="text-align:right;cursor:pointer;" onclick="sortFilCol('perSpool')">Per (g)</th>
+                <th style="text-align:right;cursor:pointer;" onclick="sortFilCol('storage')">På lager (g)</th>
+                <th style="text-align:right;cursor:pointer;" onclick="sortFilCol('willUse')">Estimert bruk</th>
+                <th style="text-align:right;cursor:pointer;" onclick="sortFilCol('remaining')">Kan brukes</th>
+                <th style="text-align:center;cursor:pointer;" onclick="sortFilCol('orderMore')">Bestill?</th>
+                <th></th>
+              </tr></thead>
+              <tbody id="fil-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+      <div id="fil-forbruk-section" style="display:none;">
+        <div class="sec-label">Forbruk per farge (fra Sheet)</div>
+        <div class="card" id="usage-summary-card">
+          <div style="font-size:12px;color:var(--t3);padding:8px 0;">Importer Filamentbruk-arket for å se forbruk per farge</div>
+        </div>
+        <div class="sec-label">Forbruk aktive prosjekter</div>
+        <div class="card">
+          <table class="fil-tbl">
+            <thead><tr>
+              <th style="min-width:140px;cursor:pointer;" onclick="sortProjUsage('name')">Oppskrift</th>
+              <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('count')">Antall</th>
+              <th style="cursor:pointer;" onclick="sortProjUsage('c1')">Farge</th>
+              <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('grams')">g/stk</th>
+              <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('total')">Total g</th>
+            </tr></thead>
+            <tbody id="usage-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="page" id="page-settings">
+    <div class="scroll-content">
+      <div class="sec-label">Sky-lagring (Supabase)</div>
+      <div class="card" style="padding:14px;">
+        <p style="font-size:12px;color:var(--t2);line-height:1.65;margin-bottom:12px;">
+          Data lagres automatisk i skyen. Trygt mot CCleaner, tilgjengelig overalt.
+        </p>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="btn btn-s btn-sm" style="flex:1;" onclick="sbPull()">Hent fra sky</button>
+          <button class="btn btn-p btn-sm" style="flex:2;" onclick="sbPush()">Last opp nå</button>
+        </div>
+        <div id="gh-status" style="font-size:12px;color:var(--t2);margin-top:6px;">Kobler til automatisk...</div>
+      </div>
+
+      <div class="sec-label">Importer fra Google Sheets</div>
+      <div class="card" style="padding:14px;">
+        <p style="font-size:12px;color:var(--t2);line-height:1.65;margin-bottom:14px;">
+          Klikk på hvert ark-fane nederst i Google Sheets →<br>
+          <strong style="color:var(--t1);">Fil → Last ned → CSV</strong> — gjør dette for alle tre arkene.
+        </p>
+        <div class="form-group">
+          <label class="form-label">📋 Ting som skal printes</label>
+          <div class="import-box" onclick="document.getElementById('imp-proj').click()">
+            <input type="file" id="imp-proj" accept=".csv" style="display:none;" onchange="importCSV('projects',this)">
+            <div style="font-size:12px;color:var(--t2);">Trykk for å velge fil</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px;" id="lbl-proj">Ingen fil valgt</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">📊 Filamentbruk</label>
+          <div class="import-box" onclick="document.getElementById('imp-usage').click()">
+            <input type="file" id="imp-usage" accept=".csv" style="display:none;" onchange="importCSV('usage',this)">
+            <div style="font-size:12px;color:var(--t2);">Trykk for å velge fil</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px;" id="lbl-usage">Ingen fil valgt</div>
+          </div>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">🧵 Filament</label>
+          <div class="import-box" onclick="document.getElementById('imp-fil').click()">
+            <input type="file" id="imp-fil" accept=".csv" style="display:none;" onchange="importCSV('filament',this)">
+            <div style="font-size:12px;color:var(--t2);">Trykk for å velge fil</div>
+            <div style="font-size:11px;color:var(--t3);margin-top:3px;" id="lbl-fil">Ingen fil valgt</div>
+          </div>
+        </div>
+      </div>
+      <div class="sec-label">Backup</div>
+      <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-s btn-sm" onclick="exportJSON()">Last ned backup (JSON)</button>
+        <button class="btn btn-s btn-sm" onclick="document.getElementById('imp-json').click()">Gjenopprett fra backup (JSON)</button>
+        <input type="file" id="imp-json" accept=".json" style="display:none;" onchange="importJSON(this)">
+      </div>
+
+      <div class="sec-label">Eksporter som CSV</div>
+      <div class="card" style="padding:14px;display:flex;flex-direction:column;gap:8px;">
+        <button class="btn btn-s btn-sm" onclick="exportCSV('projects')">📋 Eksporter prosjekter (aktive)</button>
+        <button class="btn btn-s btn-sm" onclick="exportCSV('done')">✅ Eksporter ferdige prosjekter</button>
+        <button class="btn btn-s btn-sm" onclick="exportCSV('filament')">🧵 Eksporter filament (lager)</button>
+        <button class="btn btn-s btn-sm" onclick="exportCSV('usage')">📊 Eksporter filamentbruk</button>
+        <button class="btn btn-s btn-sm" onclick="exportCSV('all')" style="border-color:var(--acc);color:var(--acc);">⬇ Eksporter alle (4 filer)</button>
+      </div>
+      <div class="sec-label">Administrer personer</div>
+      <div class="card" style="padding:14px;">
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
+          <input type="text" id="new-person-g" placeholder="Legg til person…" style="flex:1;font-size:12px;">
+          <button class="btn btn-s btn-sm" onclick="addPersonG()">+</button>
+        </div>
+        <div id="ptags-g" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div class="sec-label">Slett alt</div>
+      <div class="card" style="padding:14px;">
+        <button class="btn btn-d btn-sm" style="width:100%;" onclick="clearAll()">Slett alle data</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- BOTTOM NAV -->
+<div class="bottomnav">
+  <button class="nav-btn active" id="nav-projects" onclick="goPage('projects',this)">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+    Prosjekter
+  </button>
+  <button class="nav-btn" id="nav-filament" onclick="goPage('filament',this)">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>
+    Filament
+  </button>
+  <button class="nav-btn" id="nav-settings" onclick="goPage('settings',this)">
+    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l-.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+    Innstillinger
+  </button>
+</div>
+
+<!-- PROJECT MODAL - drawer is INSIDE overlay so flexbox centers it -->
+<div class="dov" id="dov-proj" onmousedown="dovMouseDown(event)" onmouseup="dovMouseUp(event,'proj')">
+  <div class="drawer" id="d-proj" onclick="event.stopPropagation()">
+    <div class="dtitle" id="d-proj-title">Nytt prosjekt</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-group">
+      <label class="form-label">Oppskrift / navn *</label>
+      <input type="text" id="f-name" placeholder="T.eks. Benchy, Vase…">
+    </div>
+    <div class="grid2">
+      <div class="form-group" style="position:relative;">
+        <label class="form-label">Til hvem</label>
+        <input type="text" id="f-person-input" placeholder="Søk eller skriv navn…" autocomplete="off"
+          oninput="filterPersons(this.value)"
+          onfocus="showPersonDropdown()"
+          onblur="setTimeout(hidePersonDropdown,150)">
+        <input type="hidden" id="f-person" value="Deg">
+        <div id="person-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#242428;border:1px solid rgba(255,255,255,0.15);border-radius:8px;z-index:100;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Antall</label>
+        <input type="number" id="f-count" value="1" min="1" oninput="showColorStock()">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Farger (opptil 4)</label>
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;align-items:center;">
+          <select id="f-c1" style="font-size:11px;" onchange="showColorStock()"></select>
+          <input type="text" inputmode="numeric" id="f-g1" placeholder="g/stk" style="font-size:12px;text-align:right;" oninput="showColorStock()">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;align-items:center;">
+          <select id="f-c2" style="font-size:11px;" onchange="showColorStock()"></select>
+          <input type="text" inputmode="numeric" id="f-g2" placeholder="g/stk" style="font-size:12px;text-align:right;" oninput="showColorStock()">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;align-items:center;">
+          <select id="f-c3" style="font-size:11px;" onchange="showColorStock()"></select>
+          <input type="text" inputmode="numeric" id="f-g3" placeholder="g/stk" style="font-size:12px;text-align:right;" oninput="showColorStock()">
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 90px;gap:6px;align-items:center;">
+          <select id="f-c4" style="font-size:11px;" onchange="showColorStock()"></select>
+          <input type="text" inputmode="numeric" id="f-g4" placeholder="g/stk" style="font-size:12px;text-align:right;" oninput="showColorStock()">
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--t3);margin-top:5px;">Gram per farge per stk (valgfritt — ellers fordeles g/stk likt)</div>
+      <div id="color-stock-warning" style="margin-top:6px;display:flex;flex-direction:column;gap:4px;"></div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Filament per stk (g)</label>
+      <input type="number" id="f-grams" placeholder="0" min="0" oninput="showColorStock()">
+    </div>
+    <div class="form-group" style="position:relative;">
+      <label class="form-label">Prosjektgruppe</label>
+      <input type="text" id="f-project-input" placeholder="Søk eller skriv ny gruppe…" autocomplete="off"
+        oninput="filterGroups(this.value)"
+        onfocus="showGroupDropdown()"
+        onblur="setTimeout(hideGroupDropdown,150)">
+      <input type="hidden" id="f-project" value="">
+      <div id="group-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;background:#242428;border:1px solid rgba(255,255,255,0.15);border-radius:8px;z-index:200;max-height:160px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-s" style="flex:1;" onclick="closeProjDrawer()">Avbryt</button>
+      <button class="btn btn-p" style="flex:2;" onclick="saveProject()">Lagre</button>
+    </div>
+    <button class="btn btn-s" style="width:100%;font-size:12px;" onclick="closeProjDrawer();openBulkProjModal()">📋 Legg til mange på en gang</button>
+    <div id="ptags" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- ACTUAL STATS MODAL -->
+<div class="dov" id="dov-actual" onmousedown="dovMouseDown(event)" onmouseup="dovMouseUp(event,'actual')">
+  <div class="drawer" id="d-actual" onclick="event.stopPropagation()">
+    <div class="dtitle">✅ Ferdig! Faktiske tall</div>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:14px;line-height:1.6;">Valgfritt — legg inn faktiske tall. Hopp over hvis du ikke vil registrere det.</p>
+    <input type="hidden" id="actual-proj-id">
+    <div class="grid2">
+      <div class="form-group">
+        <label class="form-label">Faktiske timer</label>
+        <input type="number" id="actual-hours" placeholder="Estimert: —" min="0" step="0.5">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Faktisk filament (g)</label>
+        <input type="number" id="actual-grams" placeholder="Estimert: —" min="0">
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-s" style="flex:1;" onclick="skipActual()">Hopp over</button>
+      <button class="btn btn-p" style="flex:2;" onclick="saveActual()">Lagre</button>
+    </div>
+  </div>
+</div>
+
+<!-- BULK PROJECT MODAL -->
+<div class="dov" id="dov-bulk-proj" onmousedown="dovMouseDown(event)" onmouseup="dovMouseUp(event,'bulk-proj')">
+  <div class="drawer" id="d-bulk-proj" onclick="event.stopPropagation()" style="max-width:700px;width:96vw;">
+    <div class="dtitle">📋 Legg til mange prosjekter</div>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:12px;line-height:1.6;">Fyll inn tabellen. Trykk Enter for å hoppe til neste celle, Enter på siste kolonne legger til ny rad.</p>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);min-width:140px;">Oppskrift</th>
+            <th style="text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);">Til hvem</th>
+            <th style="text-align:right;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);">Antall</th>
+            <th style="text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);">Farge</th>
+            <th style="text-align:right;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);">g/stk</th>
+            <th style="text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--b2);">Prosjekt</th>
+            <th style="padding:6px 4px;border-bottom:1px solid var(--b2);"></th>
+          </tr>
+        </thead>
+        <tbody id="bulk-proj-tbody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-s btn-sm" onclick="addBulkProjRow()" style="width:100%;margin:10px 0;">+ Legg til rad</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-s" style="flex:1;" onclick="closeBulkProjModal()">Avbryt</button>
+      <button class="btn btn-p" style="flex:2;" onclick="saveBulkProj()">Lagre alle</button>
+    </div>
+  </div>
+</div>
+
+<!-- RESTOCK MODAL -->
+<div class="dov" id="dov-restock" onmousedown="dovMouseDown(event)" onmouseup="dovMouseUp(event,'restock')">
+  <div class="drawer" id="d-restock" onclick="event.stopPropagation()" style="max-width:600px;width:96vw;">
+    <div class="dtitle">📦 Legg til mange på en gang</div>
+    <p style="font-size:12px;color:var(--t2);margin-bottom:12px;line-height:1.6;">Fyll inn tabellen. Eksisterende farger får lagt til antall og på lager. Nye farger opprettes.</p>
+    <div style="overflow-x:auto;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead>
+          <tr>
+            <th style="text-align:left;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 8px;border-bottom:1px solid var(--b2);">Farge</th>
+            <th style="text-align:right;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 8px;border-bottom:1px solid var(--b2);">Antall</th>
+            <th style="text-align:right;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 8px;border-bottom:1px solid var(--b2);">Per (g)</th>
+            <th style="text-align:right;font-size:11px;font-weight:600;color:var(--t3);text-transform:uppercase;letter-spacing:0.06em;padding:6px 8px;border-bottom:1px solid var(--b2);">På lager (g)</th>
+            <th style="padding:6px 4px;border-bottom:1px solid var(--b2);"></th>
+          </tr>
+        </thead>
+        <tbody id="restock-tbody"></tbody>
+      </table>
+    </div>
+    <button class="btn btn-s btn-sm" onclick="addRestockRow()" style="width:100%;margin:10px 0;">+ Legg til rad</button>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-s" style="flex:1;" onclick="closeRestock()">Avbryt</button>
+      <button class="btn btn-p" style="flex:2;" onclick="saveRestock()">Lagre alle</button>
+    </div>
+  </div>
+</div>
+
+<!-- FILAMENT MODAL - drawer is INSIDE overlay so flexbox centers it -->
+<div class="dov" id="dov-fil" onmousedown="dovMouseDown(event)" onmouseup="dovMouseUp(event,'fil')">
+  <div class="drawer" id="d-fil" onclick="event.stopPropagation()">
+    <div class="dtitle" id="d-fil-title">Legg til filament</div>
+    <input type="hidden" id="edit-fil-id">
+    <div class="grid2">
+      <div class="form-group" style="position:relative;">
+        <label class="form-label">Farge / navn</label>
+        <input type="text" id="ff-color" placeholder="Søk eller skriv ny…" autocomplete="off"
+          oninput="filterFilColor(this.value)"
+          onfocus="filterFilColor(this.value)"
+          onblur="setTimeout(hideFilColorDD, 150)">
+        <div id="fil-color-dd" style="display:none;position:absolute;top:100%;left:0;right:0;background:#242428;border:1px solid rgba(255,255,255,0.15);border-radius:8px;z-index:200;max-height:180px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.5);"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Type</label>
+        <select id="ff-type">
+          <option value="PLA">PLA</option>
+          <option value="PETG">PETG</option>
+          <option value="ABS">ABS</option>
+          <option value="TPU">TPU</option>
+          <option value="ASA">ASA</option>
+          <option value="Annet">Annet</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Antall spoler</label>
+      <input type="number" id="ff-count" value="1" min="1" oninput="updateFilStorage()">
+      <input type="hidden" id="ff-has" value="Ja">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Gram per spole</label>
+      <div style="display:flex;gap:8px;">
+        <button type="button" class="spool-size-btn active" onclick="setSpoolSize(1000,this)">1000g</button>
+        <button type="button" class="spool-size-btn" onclick="setSpoolSize(3000,this)">3000g</button>
+      </div>
+      <input type="hidden" id="ff-per" value="1000">
+    </div>
+    <div class="form-group">
+      <label class="form-label">På lager (g)</label>
+      <input type="number" id="ff-storage" placeholder="Auto: antall × per (g)" min="0" oninput="onStorageInput()">
+      <div style="font-size:11px;color:var(--t3);margin-top:3px;">Beregnes automatisk. Endre hvis du har delvis brukt spole.</div>
+    </div>
+    <input type="hidden" id="ff-used" value="0">
+    <input type="hidden" id="ff-will" value="0">
+    <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <button class="btn btn-s" style="flex:1;" onclick="closeFilDrawer()">Avbryt</button>
+      <button class="btn btn-p" style="flex:2;" onclick="saveFilament()">Lagre</button>
+    </div>
+    <button class="btn btn-s" style="width:100%;font-size:12px;" onclick="closeFilDrawer();openRestockModal()">📦 Legg til mange på en gang</button>
+  </div>
+</div>
+
+<script>
+// ── STATE ───────────────────────────────────────────────────────────────────
+let projects  = JSON.parse(localStorage.getItem('ft_p') || '[]');
+let filaments = JSON.parse(localStorage.getItem('ft_f') || '[]');
+let persons   = JSON.parse(localStorage.getItem('ft_persons') || '["Deg","Kristian","Lisa","Andrea","Sarah","Mette"]');
+let usageSummary = JSON.parse(localStorage.getItem('ft_usage') || '{}');
+let sortMode  = 'az';
+let filterProject = null;
+let filterPerson  = null;
+let filFilterZero  = false;  // hide antall=0
+let filFilterOrder = null;   // null=all, 'ja'=only order, 'nei'=only no-order
+let tabMode   = 'active';
+let colSort   = {col: null, dir: 1};  // column sort for table headers
+let filColSort = {col: null, dir: 1};
+let curPage   = 'projects';
+let npid = parseInt(localStorage.getItem('ft_npid')||'1');
+let nfid = parseInt(localStorage.getItem('ft_nfid')||'1');
+
+const PAL = ['#f5f5f5','#1a1a1a','#d4c9a8','#e53935','#ef6c00','#fdd835','#43a047','#00897b','#1e88e5','#3949ab','#8e24aa','#d81b60','#6d4c41','#546e7a','#ff8f00','#00acc1'];
+
+const CMAP = {
+  'hvit':'#f5f5f5','white':'#f5f5f5','svart':'#1a1a1a','black':'#1a1a1a',
+  'rød':'#e53935','rod':'#e53935','red':'#e53935','blå':'#1e88e5','bla':'#1e88e5','blue':'#1e88e5',
+  'grønn':'#43a047','gronn':'#43a047','green':'#43a047','gul':'#fdd835','yellow':'#fdd835',
+  'oransje':'#ef6c00','orange':'#ef6c00','lilla':'#8e24aa','purple':'#8e24aa',
+  'rosa':'#d81b60','pink':'#d81b60','grå':'#546e7a','gra':'#546e7a','gray':'#546e7a','grey':'#546e7a',
+  'brun':'#6d4c41','brown':'#6d4c41','turkis':'#00897b','teal':'#00897b',
+  'naturlig':'#d4c9a8','natural':'#d4c9a8','beige':'#d4c9a8','gull':'#ff8f00','gold':'#ff8f00',
+  'sølv':'#9e9e9e','silver':'#9e9e9e','mørkeblå':'#3949ab','navy':'#3949ab',
+  'rubinrød':'#c62828','wood':'#8d6e63','gjennomsiktig':'#b0bec5','transparent':'#b0bec5',
+};
+
+function css(name) {
+  if (!name) return '#333';
+  const t = name.trim();
+  if (t.startsWith('#')) return t;
+  const k = t.toLowerCase().replace(/[^a-zøæå]/g,'');
+  if (CMAP[k]) return CMAP[k];
+  for (const [w,h] of Object.entries(CMAP)) { if (k.includes(w)||w.includes(k)) return h; }
+  let h=0; for (let i=0;i<t.length;i++) h=t.charCodeAt(i)+((h<<5)-h);
+  return `hsl(${Math.abs(h)%360},40%,50%)`;
+}
+
+function save() {
+  localStorage.setItem('ft_p',  JSON.stringify(projects));
+  localStorage.setItem('ft_f',  JSON.stringify(filaments));
+  localStorage.setItem('ft_persons', JSON.stringify(persons));
+  localStorage.setItem('ft_npid', npid);
+  localStorage.setItem('ft_nfid', nfid);
+}
+
+function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function fmt(n) { return (Math.round(n||0)).toLocaleString('no'); }
+function uid(t) { return t==='p' ? npid++ : nfid++; }
+
+// ── INIT ────────────────────────────────────────────────────────────────────
+// ── GITHUB SYNC ──────────────────────────────────────────────────────────────
+let ghConfig = JSON.parse(localStorage.getItem('gh_config') || '{}');
+
+function saveGHConfig() {
+  const token = document.getElementById('gh-token').value.trim();
+  const repo  = document.getElementById('gh-repo').value.trim();
+  if (!token || !repo) { toast('Fyll inn token og repo'); return; }
+  ghConfig = { token, repo };
+  localStorage.setItem('gh_config', JSON.stringify(ghConfig));
+  toast('GitHub-innstillinger lagret ✓');
+  setGHStatus('Innstillinger lagret. Trykk "Last opp data nå" for å synke.');
+}
+
+function setGHStatus(msg, ok) {
+  const el = document.getElementById('gh-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok === true ? 'var(--green)' : ok === false ? 'var(--red)' : 'var(--t2)';
+}
+
+async function ghPush() {
+  if (!ghConfig.token || !ghConfig.repo) {
+    toast('Sett opp GitHub-innstillinger først');
+    return;
+  }
+  setGHStatus('Laster opp…');
+  const data = JSON.stringify({ projects, filaments, persons, usageSummary, savedAt: new Date().toISOString() }, null, 2);
+  const encoded = btoa(unescape(encodeURIComponent(data)));
+  try {
+    // Get current SHA if file exists
+    let sha = null;
+    const getRes = await fetch(`https://api.github.com/repos/${ghConfig.repo}/contents/data.json`, {
+      headers: { Authorization: `token ${ghConfig.token}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (getRes.ok) {
+      const existing = await getRes.json();
+      sha = existing.sha;
+    }
+    // Push new data
+    const body = { message: 'Auto-save from Filament Tracker', content: encoded };
+    if (sha) body.sha = sha;
+    const putRes = await fetch(`https://api.github.com/repos/${ghConfig.repo}/contents/data.json`, {
+      method: 'PUT',
+      headers: { Authorization: `token ${ghConfig.token}`, Accept: 'application/vnd.github.v3+json', 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (putRes.ok) {
+      localStorage.setItem('gh_last_push', new Date().toISOString());
+      setGHStatus('✓ Lagret til GitHub ' + new Date().toLocaleTimeString('no'), true);
+      toast('Lagret til GitHub ✓');
+    } else {
+      const err = await putRes.json();
+      setGHStatus('Feil: ' + (err.message||putRes.status), false);
+    }
+  } catch(e) {
+    setGHStatus('Nettverksfeil: ' + e.message, false);
+  }
+}
+
+async function ghPull() {
+  if (!ghConfig.token || !ghConfig.repo) return;
+  try {
+    const res = await fetch(`https://api.github.com/repos/${ghConfig.repo}/contents/data.json`, {
+      headers: { Authorization: `token ${ghConfig.token}`, Accept: 'application/vnd.github.v3+json' }
+    });
+    if (!res.ok) return; // no file yet, skip
+    const file = await res.json();
+    const decoded = decodeURIComponent(escape(atob(file.content.replace(/\n/g,''))));
+    const data = JSON.parse(decoded);
+    if (data.projects)      projects      = data.projects;
+    if (data.filaments)     filaments     = data.filaments;
+    if (data.persons)       persons       = data.persons;
+    if (data.usageSummary)  usageSummary  = data.usageSummary;
+    save();
+    renderAll(); renderPtagsG();
+    setGHStatus('✓ Hentet fra GitHub ' + new Date().toLocaleTimeString('no'), true);
+    toast('Data hentet fra GitHub ✓');
+  } catch(e) {
+    console.log('GitHub pull failed:', e.message);
+  }
+}
+
+// Auto-push debouncer - called after save()
+let _ghPushTimer = null;
+function scheduleGHPush() {
+  clearTimeout(_ghPushTimer);
+  _ghPushTimer = setTimeout(() => {
+    if (ghConfig.token && ghConfig.repo) ghPush();
+  }, 2000);
+}
+
+// ── SUPABASE SYNC ────────────────────────────────────────────────────────────
+const SB_URL = 'https://gzpbmwtcjzxgesmoaark.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd6cGJtd3Rjanp4Z2VzbW9hYXJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk5NTMxMjksImV4cCI6MjA5NTUyOTEyOX0.Nz7-aHywvcBzcCV-Jp7HvtR9jk_DFBNPiFtCSx-shZo';
+
+function sbHeaders() {
+  return {
+    'Content-Type': 'application/json',
+    'apikey': SB_KEY,
+    'Authorization': 'Bearer ' + SB_KEY
+  };
+}
+
+function setSBStatus(msg, ok) {
+  const el = document.getElementById('gh-status');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.color = ok === true ? 'var(--green)' : ok === false ? 'var(--red)' : 'var(--t2)';
+}
+
+async function sbPush() {
+  const data = JSON.stringify({ projects, filaments, persons, usageSummary, savedAt: new Date().toISOString() });
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/data', {
+      method: 'POST',
+      headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify({ key: 'main', value: data })
+    });
+    if (res.ok || res.status === 201) {
+      setSBStatus('✓ Lagret ' + new Date().toLocaleTimeString('no'), true);
+    } else {
+      const err = await res.text();
+      setSBStatus('Feil: ' + res.status, false);
+      console.error('Supabase push error:', err);
+    }
+  } catch(e) {
+    setSBStatus('Nettverksfeil', false);
+    console.error('Supabase push:', e);
+  }
+}
+
+async function sbPull() {
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main&select=value', {
+      headers: sbHeaders()
+    });
+    if (!res.ok) return;
+    const rows = await res.json();
+    if (!rows.length) return;
+    const data = JSON.parse(rows[0].value);
+    if (data.projects)     projects     = data.projects;
+    if (data.filaments)    filaments    = data.filaments;
+    if (data.persons)      persons      = data.persons;
+    if (data.usageSummary) usageSummary = data.usageSummary;
+    localStorage.setItem('ft_p', JSON.stringify(projects));
+    localStorage.setItem('ft_f', JSON.stringify(filaments));
+    localStorage.setItem('ft_persons', JSON.stringify(persons));
+    localStorage.setItem('ft_usage', JSON.stringify(usageSummary));
+    renderAll(); renderPtagsG();
+    setSBStatus('✓ Hentet ' + new Date().toLocaleTimeString('no'), true);
+    toast('Data hentet fra sky ✓');
+  } catch(e) {
+    console.log('Supabase pull failed:', e.message);
+  }
+}
+
+// Auto-push debouncer
+let _ghPushTimer = null;
+function scheduleGHPush() {
+  clearTimeout(_ghPushTimer);
+  _ghPushTimer = setTimeout(() => sbPush(), 2000);
+}
+
+function autoBackup() {
+  const today = new Date().toISOString().slice(0,10);
+  const last = localStorage.getItem('ft_last_backup');
+  if (last === today) return;
+  const data = { projects, filaments, persons, exportedAt: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'filament-backup-' + today + '.json';
+  a.click();
+  URL.revokeObjectURL(url);
+  localStorage.setItem('ft_last_backup', today);
+  toast('Daglig backup lastet ned ✓');
+}
+
+window.onload = () => {
+  // One-time cleanup: remove filaments with antall=0
+  const before = filaments.length;
+  filaments = filaments.filter(f => (f.count||0) > 0);
+  if (filaments.length < before) { save(); }
+  renderAll(); renderPtagsG();
+  setTimeout(autoBackup, 1500);
+  // Pull from Supabase on load
+  setTimeout(sbPull, 500);
+};
+
+function recalcWillUse() {
+  filaments.forEach(f => { f.willUse = 0; });
+
+  // Calculate willUse from ACTIVE projects only
+  projects.filter(p => !p.done && (p.grams > 0 || p.g1 > 0 || p.g2 > 0 || p.g3 > 0 || p.g4 > 0)).forEach(p => {
+    const totalG = (p.grams||0) * (p.count||1);
+    const colors = [p.c1,p.c2,p.c3,p.c4].filter(Boolean);
+    const perG   = [p.g1||0, p.g2||0, p.g3||0, p.g4||0];
+    const hasCustomG = perG.some(g=>g>0);
+    filaments.forEach(f => {
+      if (colors.length === 0) return;
+      const idx = colors.findIndex(c => c.toLowerCase().trim() === f.color.toLowerCase().trim());
+      if (idx === -1) return;
+      const share = hasCustomG && perG[idx] > 0 ? perG[idx] * (p.count||1) : totalG / colors.length;
+      f.willUse = (f.willUse||0) + share;
+    });
+  });
+
+  // Recalculate igjen and bestill — storage is never touched here
+  filaments.forEach(f => {
+    f.remaining = (f.storage||0) - (f.willUse||0);  // allow negative
+    f.orderMore = (f.remaining < 750) ? 'ja' : 'nei';
+  });
+}
+
+function renderAll() { recalcWillUse(); renderProjects(); renderFilament(); renderFilterBar(); }
+
+// ── INLINE EDIT STATE ───────────────────────────────────────────────────────
+let editingProjId = null;
+function projRow(p, editing=false) {
+  const colors = [p.c1,p.c2,p.c3,p.c4].filter(Boolean);
+  const tH = 0;
+  const perColourTotal = (p.g1||0)+(p.g2||0)+(p.g3||0)+(p.g4||0);
+  const gramsPerStk = perColourTotal > 0 ? perColourTotal : (p.grams||0);
+  const tG = gramsPerStk * (p.count||1);
+
+  if (editing) {
+    const personOpts = persons.map(x=>`<option value="${esc(x)}"${x===p.person?' selected':''}>${esc(x)}</option>`).join('');
+    return `<tr class="editing-row" id="erow-${p.id}">
+      <td><input class="ie" id="ie-name-${p.id}" value="${esc(p.name)}" style="width:140px;"></td>
+      <td><select class="ie" id="ie-person-${p.id}" style="width:85px;">${personOpts}</select></td>
+      <td style="width:50px;"><input class="ie num-ie" id="ie-count-${p.id}" type="text" inputmode="numeric" value="${p.count||1}" style="width:100%;text-align:right;"></td>
+      <td>
+        <div class="color-inputs" id="ie-color-wrap-${p.id}">
+          <select class="ie" id="ie-c1-${p.id}" style="width:70px;font-size:11px;padding:0 2px;"></select>
+          <select class="ie" id="ie-c2-${p.id}" style="width:70px;font-size:11px;padding:0 2px;"></select>
+          <select class="ie" id="ie-c3-${p.id}" style="width:70px;font-size:11px;padding:0 2px;"></select>
+          <select class="ie" id="ie-c4-${p.id}" style="width:70px;font-size:11px;padding:0 2px;"></select>
+        </div>
+      </td>
+
+      <td style="width:72px;min-width:72px;"><input class="ie num-ie" id="ie-grams-${p.id}" type="text" inputmode="numeric" value="${p.grams||''}" style="width:100%;text-align:right;" placeholder="0"></td>
+      <td class="cell-num" style="color:var(--t3);">${tG ? fmt(tG)+'g' : '—'}</td>
+      <td class="cell-done">
+        <div class="chk${p.done?' on':''}" onclick="toggleDone(${p.id})">
+          <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+        </div>
+      </td>
+      <td><input class="ie" id="ie-project-${p.id}" value="${esc(p.project||'')}" style="width:110px;" placeholder="Prosjekt"></td>
+      <td style="white-space:nowrap;vertical-align:middle;">
+        <div style="display:flex;gap:4px;align-items:center;justify-content:flex-end;">
+          <button class="save-ie" onclick="saveInlineProj(${p.id})" title="Lagre">✓</button>
+          <button class="cancel-ie" onclick="cancelInlineProj()" title="Avbryt">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  const colorDots = colors.map(c=>`<div class="cdot" style="background:${css(c)}" title="${esc(c)}"></div>`).join('');
+  const colorLabel = colors.length
+    ? `<div class="cell-color">${colorDots}<span style="font-size:11px;color:var(--t2);margin-left:2px;">${colors.map(esc).join(', ')}</span></div>`
+    : '<span style="color:var(--t3);">—</span>';
+
+  const ec = `onclick="startInlineProj(${p.id})" style="cursor:pointer;"`;
+  const aH = p.actualHours ? `<span style="color:var(--acc);font-size:11px;"> (${p.actualHours}t)</span>` : '';
+  const aG = p.actualGrams ? `<span style="color:var(--acc);font-size:11px;"> (${p.actualGrams}g)</span>` : '';
+  return `<tr class="${p.done?'done-row':''}" id="prow-${p.id}">
+    <td class="cell-name proj-name-cell" ${ec}>${esc(p.name)}</td>
+    <td class="cell-person" ${ec}>${esc(p.person)}</td>
+    <td class="cell-num" ${ec}>${p.count}</td>
+    <td ${ec}>${colorLabel}</td>
+
+    <td class="cell-num" ${ec}>${gramsPerStk||'—'}</td>
+    <td class="cell-num${tG?' hi':''}" ${ec}>${tG ? fmt(tG)+'g' : '—'}${aG}</td>
+    <td class="cell-done">
+      <div class="chk${p.done?' on':''}" onclick="toggleDone(${p.id})">
+        <svg viewBox="0 0 12 12"><polyline points="2,6 5,9 10,3"/></svg>
+      </div>
+    </td>
+    <td ${ec}>${p.project?`<span class="badge badge-acc">${esc(p.project)}</span>`:'<span style="color:var(--t3);">—</span>'}</td>
+    <td style="white-space:nowrap;">
+      <button class="act-btn" onclick="event.stopPropagation();editProject(${p.id})" title="Rediger">✎</button>
+      <button class="act-btn" onclick="event.stopPropagation();copyProject(${p.id})" title="Kopier" style="color:var(--acc);">⧉</button>
+      <button class="act-btn del" onclick="event.stopPropagation();deleteProject(${p.id})">✕</button>
+    </td>
+  </tr>`;
+}
+
+function startInlineProj(id, focusField) {
+  if (editingProjId === id) return; // already editing this row, do nothing
+  if (editingProjId !== null) {
+    // Cancel previous row - just restore it from data
+    const prevId = editingProjId;
+    const prevP = projects.find(x=>x.id===prevId);
+    editingProjId = null;
+    if (document._ieKeyHandler) { document.removeEventListener('keydown', document._ieKeyHandler); document._ieKeyHandler = null; }
+    if (prevP) {
+      const prev = document.getElementById('erow-'+prevId);
+      if (prev) prev.outerHTML = projRow(prevP, false);
+    }
+  }
+  editingProjId = id;
+  const p = projects.find(x=>x.id===id);
+  if (!p) return;
+  const row = document.getElementById('prow-'+id);
+  if (!row) return; // row not found, don't proceed
+  row.outerHTML = projRow(p, true);
+  // Populate colour selects
+  const colors = filaments.map(f=>f.color).filter(Boolean).sort();
+  const opts = ['', ...colors].map(c=>`<option value="${c}">${c||'— ingen —'}</option>`).join('');
+  ['ie-c1-','ie-c2-','ie-c3-','ie-c4-'].forEach((prefix,i) => {
+    const el = document.getElementById(prefix+id);
+    if (!el) return;
+    el.innerHTML = opts;
+    el.value = [p.c1,p.c2,p.c3,p.c4][i] || '';
+  });
+  const field = focusField || 'name';
+  const f = document.getElementById('ie-'+field+'-'+id);
+  if (f) { f.focus(); f.select(); }
+  // attach Enter/Escape to all inputs and selects in row
+  const erow = document.getElementById('erow-'+id);
+  if (erow) {
+    erow.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); e.stopPropagation(); saveInlineProj(id); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelInlineProj(); }
+    });
+  }
+  // document-level fallback
+  document._ieKeyHandler = (e) => {
+    if (editingProjId === null) return;
+    if (e.key === 'Enter')  { e.preventDefault(); saveInlineProj(editingProjId); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelInlineProj(); }
+  };
+  document.addEventListener('keydown', document._ieKeyHandler);
+}
+
+function saveInlineProj(id) {
+  const p = projects.find(x=>x.id===id);
+  if (!p) return;
+  p.name    = document.getElementById('ie-name-'+id).value.trim() || p.name;
+  p.person  = document.getElementById('ie-person-'+id).value;
+  p.count   = parseInt(document.getElementById('ie-count-'+id).value.replace(',','.'))||1;
+  p.c1      = document.getElementById('ie-c1-'+id).value.trim();
+  p.c2      = document.getElementById('ie-c2-'+id).value.trim();
+  p.c3      = document.getElementById('ie-c3-'+id).value.trim();
+  p.c4      = document.getElementById('ie-c4-'+id).value.trim();
+  p.hours   = 0;
+  p.grams   = parseFloat(document.getElementById('ie-grams-'+id)?.value?.replace(',','.'))||0;
+  p.project = document.getElementById('ie-project-'+id).value.trim();
+  editingProjId = null;
+  if (document._ieKeyHandler) { document.removeEventListener('keydown', document._ieKeyHandler); document._ieKeyHandler = null; }
+  save();
+  const row = document.getElementById('erow-'+id);
+  if (row) row.outerHTML = projRow(p, false);
+  toast('Lagret ✓');
+}
+
+function cancelInlineProj() {
+  if (editingProjId === null) return;
+  const p = projects.find(x=>x.id===editingProjId);
+  editingProjId = null;
+  if (document._ieKeyHandler) { document.removeEventListener('keydown', document._ieKeyHandler); document._ieKeyHandler = null; }
+  if (!p) return;
+  const row = document.getElementById('erow-'+p.id);
+  if (row) row.outerHTML = projRow(p, false);
+}
+
+// ── PROJECTS ────────────────────────────────────────────────────────────────
+function renderProjects() {
+  let list = [...projects];
+  if (sortMode==='az') list.sort((a,b)=>a.name.localeCompare(b.name,'no'));
+  else if (sortMode==='za') list.sort((a,b)=>b.name.localeCompare(a.name,'no'));
+  else if (sortMode==='old') { /* natural */ }
+  else list.reverse();
+
+  // Column header sort overrides chip sort if active
+  if (colSort.col) {
+    const c = colSort.col;
+    list.sort((a,b) => {
+      let av, bv;
+      if (c==='name')       { av=a.name||'';       bv=b.name||''; return av.localeCompare(bv,'no')*colSort.dir; }
+      if (c==='c1')         { av=a.c1||'';         bv=b.c1||''; return av.localeCompare(bv,'no')*colSort.dir; }
+      if (c==='person')     { av=a.person||'';     bv=b.person||''; return av.localeCompare(bv,'no')*colSort.dir; }
+      if (c==='count')      { av=a.count||0;       bv=b.count||0; }
+
+      if (c==='grams')      { av=a.grams||0;       bv=b.grams||0; }
+      if (c==='totalgrams') { av=(a.grams||0)*(a.count||1); bv=(b.grams||0)*(b.count||1); }
+      if (c==='project')    { av=a.project||'';    bv=b.project||''; return av.localeCompare(bv,'no')*colSort.dir; }
+      if (c==='done')       { av=a.done?1:0;       bv=b.done?1:0; }
+      return ((av||0)-(bv||0))*colSort.dir;
+    });
+  }
+  list = list.filter(p => tabMode==='done' ? p.done : !p.done);
+  if (filterProject) list = list.filter(p => p.project === filterProject);
+  if (filterPerson)  list = list.filter(p => p.person  === filterPerson);
+  renderFerdigSummary();
+  const tb = document.getElementById('proj-tbody');
+
+  if (!list.length) {
+    tb.innerHTML = `<tr><td colspan="11" class="empty">${tabMode==='done'?'✅ Ingen ferdige prosjekter':'📋 Ingen aktive prosjekter — trykk ＋'}</td></tr>`;
+    return;
+  }
+
+  tb.innerHTML = list.map(p => projRow(p)).join('');
+}
+
+// ── FILAMENT INLINE EDIT ────────────────────────────────────────────────────
+let editingFilId = null;
+
+function filRow(f, editing=false) {
+  const total = (f.count||1) * (f.perSpool||1000);
+  const remaining = f.remaining||0;
+  const pct = total > 0 ? Math.min(100, Math.max(0, remaining / total * 100)) : 0;
+  const barC = remaining < 0 ? 'var(--red)' : remaining < 200 ? 'var(--red)' : remaining < 750 ? 'var(--amber)' : 'var(--green)';
+  const order = (f.orderMore||'').toLowerCase()==='ja';
+
+  if (editing) {
+
+    const orderOpts = ['ja','nei'].map(v=>`<option value="${v}"${v===(f.orderMore||'nei')?' selected':''}>${v}</option>`).join('');
+    return `<tr class="editing-row" id="efrow-${f.id}">
+      <td><input class="ie" id="ife-color-${f.id}" value="${esc(f.color)}" style="width:120px;"></td>
+      <td><select class="ie" id="ife-type-${f.id}" style="width:70px;font-size:12px;">
+        ${['PLA','PETG','ABS','TPU','ASA','Annet'].map(t=>`<option value="${t}"${t===(f.type||'PLA')?' selected':''}>${t}</option>`).join('')}
+      </select></td>
+      <td><input class="ie num-ie" id="ife-count-${f.id}" type="text" inputmode="numeric" value="${f.count||0}" style="width:100%;text-align:right;"></td>
+
+      <td><input class="ie num-ie" id="ife-per-${f.id}" type="text" inputmode="numeric" value="${f.perSpool||1000}" style="width:100%;text-align:right;"></td>
+      <td><input class="ie num-ie" id="ife-storage-${f.id}" type="text" inputmode="numeric" value="${f.storage||0}" style="width:100%;text-align:right;" oninput="this.dataset.manual='1'"></td>
+      <td class="num" style="color:var(--t3);">${fmt(f.willUse||0)}</td>
+      <td class="num" style="color:var(--t3);">${fmt(f.remaining||0)}</td>
+      <td><select class="ie" id="ife-order-${f.id}" style="width:50px;">${orderOpts}</select></td>
+      <td style="white-space:nowrap;vertical-align:middle;">
+        <div style="display:flex;gap:4px;align-items:center;justify-content:flex-end;">
+          <button class="save-ie" onclick="saveInlineFil(${f.id})" title="Lagre">✓</button>
+          <button class="cancel-ie" onclick="cancelInlineFil()" title="Avbryt">✕</button>
+        </div>
+      </td>
+    </tr>`;
+  }
+
+  const ec = `onclick="startInlineFil(${f.id})" style="cursor:pointer;"`;
+  return `<tr id="frow-${f.id}">
+    <td ${ec}>
+      <div class="swatch-cell">
+        <div class="swatch" style="background:${css(f.color)}"></div>
+        <div>
+          <div style="font-weight:600;font-size:12px;">${esc(f.color)}</div>
+          <div class="prog"><div class="prog-fill" style="width:${pct.toFixed(0)}%;background:${barC}"></div></div>
+        </div>
+      </div>
+    </td>
+    <td ${ec} style="font-size:12px;">${f.type||'PLA'}</td>
+    <td class="num hi" ${ec}>${f.count||0}</td>
+
+    <td class="num" ${ec}>${fmt(f.perSpool||1000)}</td>
+    <td class="num hi" ${ec}>${fmt(f.storage||0)}</td>
+    <td class="num" ${ec}>${fmt(f.willUse||0)}</td>
+    <td class="num" style="color:${(f.remaining||0)<0?'var(--red)':'var(--t1)'};" ${ec}>${fmt(f.remaining||0)}</td>
+    <td class="num" style="text-align:center;" ${ec}><span class="${order?'order-ja':'order-nei'}">${f.orderMore||'—'}</span></td>
+    <td style="white-space:nowrap;">
+      <button class="act-btn" onclick="startInlineFil(${f.id})">✎</button>
+      <button class="act-btn del" onclick="deleteFilament(${f.id})">✕</button>
+    </td>
+  </tr>`;
+}
+
+function startInlineFil(id) {
+  if (editingFilId === id) return;
+  if (editingFilId !== null) saveInlineFil(editingFilId);
+  editingFilId = id;
+  const f = filaments.find(x=>x.id===id);
+  if (!f) return;
+  const row = document.getElementById('frow-'+id);
+  if (row) row.outerHTML = filRow(f, true);
+  const inp = document.getElementById('ife-color-'+id);
+  if (inp) { inp.focus(); inp.select(); }
+  const erow = document.getElementById('efrow-'+id);
+  if (erow) {
+    erow.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); e.stopPropagation(); saveInlineFil(id); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelInlineFil(); }
+    });
+  }
+  document._ieFKeyHandler = (e) => {
+    if (editingFilId === null) return;
+    if (e.key === 'Enter')  { e.preventDefault(); saveInlineFil(editingFilId); }
+    if (e.key === 'Escape') { e.preventDefault(); cancelInlineFil(); }
+  };
+  document.addEventListener('keydown', document._ieFKeyHandler);
+}
+
+function saveInlineFil(id) {
+  const f = filaments.find(x=>x.id===id);
+  if (!f) return;
+  const g = (fid) => document.getElementById('ife-'+fid+'-'+id);
+  if (!g('color')) { editingFilId = null; return; }
+  const oldCount = f.count||0;
+  f.color    = g('color') ? g('color').value.trim() || f.color : f.color;
+  f.type     = g('type') ? g('type').value : (f.type||'PLA');
+  f.count    = g('count') ? parseInt(g('count').value)||0 : f.count;
+  f.has      = 'Ja';
+  f.perSpool = g('per') ? parseFloat(g('per').value)||1000 : f.perSpool;
+  // If antall changed and storage wasn't manually edited, adjust storage by the difference
+  const storEl = g('storage');
+  const storManual = storEl ? parseFloat(storEl.value)||0 : f.storage;
+  const countDiff = f.count - oldCount;
+  if (storEl && !storEl.dataset.manual && countDiff !== 0) {
+    f.storage = Math.max(0, (f.storage||0) + countDiff * f.perSpool);
+  } else {
+    f.storage = storManual;
+  }
+  f.remaining = (f.storage||0) - (f.willUse||0);
+  f.orderMore = (f.remaining < 750) ? 'ja' : 'nei';
+  editingFilId = null;
+  if (document._ieFKeyHandler) { document.removeEventListener('keydown', document._ieFKeyHandler); document._ieFKeyHandler = null; }
+  // Sync usageSummary from edited usedG
+  if (f.usedG > 0) usageSummary[f.color] = f.usedG;
+  else delete usageSummary[f.color];
+  localStorage.setItem('ft_usage', JSON.stringify(usageSummary));
+  save();
+  const row = document.getElementById('efrow-'+id);
+  if (row) row.outerHTML = filRow(f, false);
+  renderFilament();
+  toast('Lagret ✓');
+}
+
+function cancelInlineFil() {
+  if (editingFilId === null) return;
+  const f = filaments.find(x=>x.id===editingFilId);
+  editingFilId = null;
+  if (document._ieFKeyHandler) { document.removeEventListener('keydown', document._ieFKeyHandler); document._ieFKeyHandler = null; }
+  if (!f) return;
+  const row = document.getElementById('efrow-'+f.id);
+  if (row) row.outerHTML = filRow(f, false);
+}
+
+// ── FILAMENT ────────────────────────────────────────────────────────────────
+function renderFilament() {
+  // Stats
+  const totalStorage = filaments.reduce((a,f)=>a+(f.storage||0),0);
+  const totalUsed    = filaments.reduce((a,f)=>a+(f.usedG||0),0);
+  const totalWill    = filaments.reduce((a,f)=>a+(f.willUse||0),0);
+  const totalLeft    = filaments.reduce((a,f)=>a+(f.remaining||0),0);
+  const orderCount   = filaments.filter(f=>(f.orderMore||'').toLowerCase()==='ja').length;
+  // Table3 usage total
+  const usageTotal   = Object.values(usageSummary).reduce((a,v)=>a+v,0);
+
+  document.getElementById('fil-stats').innerHTML = `
+    <div class="stat-card"><div class="stat-val">${fmt(totalStorage)}g</div><div class="stat-lbl">I skap totalt</div></div>
+    <div class="stat-card"><div class="stat-val">${fmt(totalUsed)}g</div><div class="stat-lbl">Brukt (g)</div></div>
+    <div class="stat-card hi"><div class="stat-val">${fmt(totalWill)}g</div><div class="stat-lbl">Skal brukes</div></div>
+    <div class="stat-card${orderCount>0?' hi':''}"><div class="stat-val">${orderCount}</div><div class="stat-lbl">Bestill mer</div></div>
+    ${usageTotal>0?`<div class="stat-card" style="grid-column:span 2;"><div class="stat-val">${fmt(usageTotal)}g</div><div class="stat-lbl">Totalt brukt (alle prosjekter)</div></div>`:''}
+  `;
+
+  // Filament table
+  const fb = document.getElementById('fil-tbody');
+  // Apply filament filters
+  let filteredFil = [...filaments];
+  if (filSort.col) {
+    const c = filSort.col;
+    filteredFil.sort((a,b) => {
+      const av = a[c]||0, bv = b[c]||0;
+      if (typeof av === 'string') return av.localeCompare(bv,'no') * filSort.dir;
+      return (av - bv) * filSort.dir;
+    });
+  }
+  if (filFilterZero)          filteredFil = filteredFil.filter(f => (f.count||0) > 0);
+  if (filFilterOrder === 'ja') filteredFil = filteredFil.filter(f => (f.orderMore||'').toLowerCase() === 'ja');
+  if (filFilterOrder === 'nei') filteredFil = filteredFil.filter(f => (f.orderMore||'').toLowerCase() !== 'ja');
+  if (!filteredFil.length) {
+    fb.innerHTML = `<tr><td colspan="11" class="empty">🧵 ${filFilterZero||filFilterOrder?'Ingen filament matcher filteret':'Ingen filament ennå — importer CSV eller trykk ＋'}</td></tr>`;
+  } else {
+    fb.innerHTML = filteredFil.map(f => filRow(f)).join('');
+  }
+
+  // Table3 usage summary
+  const usCard = document.getElementById('usage-summary-card');
+  let usEntries = Object.entries(usageSummary).filter(([,v])=>v>0);
+  if (!usEntries.length) {
+    usCard.innerHTML = `<div style="font-size:12px;color:var(--t3);padding:8px 0;">Importer Filamentbruk-arket for å se forbruk per farge</div>`;
+  } else {
+    if (usageSort.col === 'color') usEntries.sort((a,b) => a[0].localeCompare(b[0],'no') * usageSort.dir);
+    else if (usageSort.col === 'val') usEntries.sort((a,b) => (a[1]-b[1]) * usageSort.dir);
+    else usEntries.sort((a,b) => b[1]-a[1]);
+    const maxVal = Math.max(...usEntries.map(([,v])=>v));
+    const uAsc = usageSort.col==='color' ? (usageSort.dir===1?'↑':'↓') : '';
+    const uVAsc = usageSort.col==='val' ? (usageSort.dir===1?'↑':'↓') : '';
+    usCard.innerHTML = `<table class="fil-tbl"><thead><tr>
+      <th style="min-width:130px;cursor:pointer;" onclick="sortUsage('color')">Farge ${uAsc}</th>
+      <th style="text-align:right;cursor:pointer;" onclick="sortUsage('val')">Brukt (g) ${uVAsc}</th>
+      <th style="min-width:80px;"></th>
+    </tr></thead><tbody>`+
+    usEntries.map(([color,val])=>`
+      <tr>
+        <td><div class="swatch-cell"><div class="swatch" style="background:${css(color)}"></div><span style="font-weight:600;font-size:12px;">${esc(color)}</span></div></td>
+        <td class="num hi">${fmt(val)}</td>
+        <td><div class="prog"><div class="prog-fill" style="width:${maxVal>0?((val/maxVal)*100).toFixed(0):0}%;background:var(--acc)"></div></div></td>
+      </tr>`).join('')+
+    `</tbody></table>`;
+  }
+
+  // Active project usage
+  const ub = document.getElementById('usage-tbody');
+  let active = projects.filter(p=>!p.done&&(p.grams||0)>0);
+  if (projUsageSort.col) {
+    active.sort((a,b) => {
+      const c = projUsageSort.col;
+      if (c==='name')  return a.name.localeCompare(b.name,'no') * projUsageSort.dir;
+      if (c==='c1')    return (a.c1||'').localeCompare(b.c1||'','no') * projUsageSort.dir;
+      if (c==='total') return ((a.grams*a.count)-(b.grams*b.count)) * projUsageSort.dir;
+      return ((a[c]||0)-(b[c]||0)) * projUsageSort.dir;
+    });
+  }
+  const pnA = projUsageSort.col==='name'  ? (projUsageSort.dir===1?'↑':'↓') : '';
+  const pcA = projUsageSort.col==='count' ? (projUsageSort.dir===1?'↑':'↓') : '';
+  const pc1A= projUsageSort.col==='c1'    ? (projUsageSort.dir===1?'↑':'↓') : '';
+  const pgA = projUsageSort.col==='grams' ? (projUsageSort.dir===1?'↑':'↓') : '';
+  const ptA = projUsageSort.col==='total' ? (projUsageSort.dir===1?'↑':'↓') : '';
+  document.getElementById('usage-tbody').previousElementSibling.querySelector('thead tr').innerHTML = `
+    <th style="min-width:140px;cursor:pointer;" onclick="sortProjUsage('name')">Oppskrift ${pnA}</th>
+    <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('count')">Antall ${pcA}</th>
+    <th style="cursor:pointer;" onclick="sortProjUsage('c1')">Farge ${pc1A}</th>
+    <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('grams')">g/stk ${pgA}</th>
+    <th style="text-align:right;cursor:pointer;" onclick="sortProjUsage('total')">Total g ${ptA}</th>`;
+  if (!active.length) {
+    ub.innerHTML = `<tr><td colspan="5" style="padding:12px;color:var(--t3);font-size:12px;">Ingen aktive prosjekter med filamentdata</td></tr>`;
+  } else {
+    ub.innerHTML = active.map(p=>{
+      const colors=[p.c1,p.c2,p.c3,p.c4].filter(Boolean);
+      const tot=Math.round((p.grams||0)*(p.count||1));
+      const dots=colors.map(c=>`<div class="cdot" style="background:${css(c)}" title="${esc(c)}"></div>`).join('');
+      return `<tr>
+        <td style="font-weight:600;font-size:12px;">${esc(p.name)}</td>
+        <td class="num">${p.count}</td>
+        <td><div class="cell-color">${dots}<span style="font-size:11px;color:var(--t2);margin-left:2px;">${colors.map(esc).join(', ')||'—'}</span></div></td>
+        <td class="num">${p.grams}</td>
+        <td class="num hi">${fmt(tot)}g</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+// ── FILTER BAR ───────────────────────────────────────────────────────────────
+function renderFilterBar() {
+  const bar = document.getElementById('filter-bar');
+  if (!bar) return;
+
+  // Collect unique projects and persons
+  const projs   = [...new Set(projects.map(p=>p.project).filter(Boolean))].sort();
+  const pers    = [...new Set(projects.map(p=>p.person).filter(Boolean))].sort();
+
+  if (!projs.length && !pers.length) { bar.innerHTML=''; return; }
+
+  let html = '';
+
+  // Project filters
+  projs.forEach(proj => {
+    const active = filterProject === proj;
+    html += `<div class="filter-chip${active?' active':''}" onclick="toggleFilterProject('${proj.replace(/'/g,"\'")}')">📁 ${proj}</div>`;
+  });
+
+  // Person filters
+  pers.forEach(person => {
+    const active = filterPerson === person;
+    html += `<div class="filter-chip person-chip-f${active?' active':''}" onclick="toggleFilterPerson('${person.replace(/'/g,"\'")}')">👤 ${person}</div>`;
+  });
+
+  // Clear button if any filter active
+  if (filterProject || filterPerson) {
+    html += `<div class="filter-chip" onclick="clearFilters()" style="border-color:var(--red);color:var(--red);">✕ Fjern filter</div>`;
+  }
+
+  bar.innerHTML = html;
+}
+
+function toggleFilterProject(proj) {
+  filterProject = filterProject === proj ? null : proj;
+  renderFilterBar(); renderProjects();
+}
+
+function toggleFilterPerson(person) {
+  filterPerson = filterPerson === person ? null : person;
+  renderFilterBar(); renderProjects();
+}
+
+function clearFilters() {
+  filterProject = null; filterPerson = null;
+  renderFilterBar(); renderProjects();
+}
+
+// ── FILAMENT SORT ────────────────────────────────────────────────────────────
+let filSort = {col: null, dir: 1};
+let usageSort = {col: null, dir: 1};
+let projUsageSort = {col: null, dir: 1};
+
+function sortUsage(col) {
+  if (usageSort.col === col) usageSort.dir *= -1;
+  else { usageSort.col = col; usageSort.dir = 1; }
+  renderFilament();
+}
+
+function sortProjUsage(col) {
+  if (projUsageSort.col === col) projUsageSort.dir *= -1;
+  else { projUsageSort.col = col; projUsageSort.dir = 1; }
+  renderFilament();
+}
+
+function sortFilCol(col) {
+  if (filSort.col === col) filSort.dir *= -1;
+  else { filSort.col = col; filSort.dir = 1; }
+  renderFilament();
+}
+
+// ── FILAMENT TABS ────────────────────────────────────────────────────────────
+function toggleFilZero() {
+  filFilterZero = !filFilterZero;
+  document.getElementById('fc-zero').classList.toggle('active', filFilterZero);
+  renderFilament();
+}
+
+function toggleFilOrder(val) {
+  filFilterOrder = filFilterOrder === val ? null : val;
+  document.getElementById('fc-ja').classList.toggle('active', filFilterOrder === 'ja');
+  document.getElementById('fc-nei').classList.toggle('active', filFilterOrder === 'nei');
+  renderFilament();
+}
+
+function setFilTab(tab, btn) {
+  document.querySelectorAll('#page-filament .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('fil-lager-section').style.display  = tab === 'lager'   ? 'block' : 'none';
+  document.getElementById('fil-forbruk-section').style.display = tab === 'forbruk' ? 'block' : 'none';
+}
+
+// ── COLUMN SORT ─────────────────────────────────────────────────────────────
+function sortCol(col) {
+  if (colSort.col === col) colSort.dir *= -1;
+  else { colSort.col = col; colSort.dir = 1; }
+  // Update header indicators
+  document.querySelectorAll('#proj-table th').forEach(th => {
+    th.classList.remove('sort-asc','sort-desc');
+  });
+  const thEl = document.getElementById('th-'+col);
+  if (thEl) thEl.classList.add(colSort.dir===1?'sort-asc':'sort-desc');
+  renderProjects();
+}
+
+// ── NAVIGATION ───────────────────────────────────────────────────────────────
+function goPage(page, btn) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  btn.classList.add('active');
+  curPage = page;
+  const titles={projects:'Prosjekter',filament:'Filament',settings:'Innstillinger'};
+  document.getElementById('topbar-title').textContent = titles[page];
+  document.getElementById('add-btn').style.display = page==='settings'?'none':'flex';
+  if (page==='settings') renderPtagsG();
+}
+
+function openAdd() {
+  if (curPage==='filament') { openFilDrawer(); return; }
+  openProjDrawer();
+}
+
+function setSort(mode,el) {
+  sortMode=mode;
+  document.querySelectorAll('.sort-bar .chip').forEach(c=>c.classList.toggle('active',c.dataset.sort===mode));
+  renderProjects();
+}
+
+function skipActual() {
+  document.getElementById('dov-actual').classList.remove('open');
+  toast('Ferdig! ✓');
+}
+
+function saveActual() {
+  const id = parseInt(document.getElementById('actual-proj-id').value);
+  const p = projects.find(x=>x.id===id);
+  if (p) {
+    const h = parseFloat(document.getElementById('actual-hours').value);
+    const g = parseFloat(document.getElementById('actual-grams').value);
+    if (!isNaN(h) && h > 0) p.actualHours = h;
+    if (!isNaN(g) && g > 0) p.actualGrams = g;
+    save(); renderAll();
+  }
+  document.getElementById('dov-actual').classList.remove('open');
+  toast('Ferdig! ✓');
+}
+
+function renderFerdigSummary() {
+  const existing = document.getElementById('ferdig-summary');
+  if (existing) existing.remove();
+  if (tabMode !== 'done') return;
+  const done = projects.filter(p=>p.done);
+  if (!done.length) return;
+  const totalH = done.reduce((a,p)=>a+(p.actualHours||(p.hours||0)*(p.count||1)),0);
+  const totalG = done.reduce((a,p)=>a+(p.actualGrams||(p.grams||0)*(p.count||1)),0);
+  const el = document.createElement('div');
+  el.id = 'ferdig-summary';
+  el.style.cssText = 'display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:10px 0 4px;';
+  el.innerHTML = `
+    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">${done.length}</div>
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.07em;margin-top:2px;">Fullført</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">${fmt(totalH)}t</div>
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.07em;margin-top:2px;">Timer totalt</div>
+    </div>
+    <div style="background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:10px 12px;">
+      <div style="font-family:'Syne',sans-serif;font-size:18px;font-weight:700;">${fmt(totalG)}g</div>
+      <div style="font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:0.07em;margin-top:2px;">Filament brukt</div>
+    </div>`;
+  const tblWrap = document.getElementById('proj-tbl-wrap');
+  if (tblWrap) tblWrap.parentNode.insertBefore(el, tblWrap);
+}
+
+function setTab(mode,btn) {
+  tabMode=mode;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderProjects();
+}
+
+// ── PROJECT DRAWER ───────────────────────────────────────────────────────────
+function openProjDrawer(p) {
+  // Cancel any inline edit first
+  if (editingProjId !== null) cancelInlineProj();
+  document.getElementById('d-proj-title').textContent = p ? 'Rediger prosjekt' : 'Nytt prosjekt';
+  document.getElementById('edit-id').value = p ? p.id : '';
+  document.getElementById('f-name').value = p ? p.name : '';
+  document.getElementById('f-count').value = p ? p.count : 1;
+  document.getElementById('f-g1').value = p ? (p.g1||'') : '';
+  document.getElementById('f-g2').value = p ? (p.g2||'') : '';
+  document.getElementById('f-g3').value = p ? (p.g3||'') : '';
+  document.getElementById('f-g4').value = p ? (p.g4||'') : '';
+  // colour values set by buildColorSelects below
+  document.getElementById('f-grams').value = p ? (p.grams||'') : '';
+  document.getElementById('f-project').value = p ? (p.project||'') : '';
+  const gpInp = document.getElementById('f-project-input');
+  if (gpInp) gpInp.value = p ? (p.project||'') : '';
+  buildPersonSel(p?p.person:'Deg');
+  buildColorSelects(p ? [p.c1,p.c2,p.c3,p.c4] : []);
+  buildPtags();
+  setTimeout(showColorStock, 0);
+  document.getElementById('dov-proj').classList.add('open');
+}
+
+function showColorStock() {
+  const warn = document.getElementById('color-stock-warning');
+  if (!warn) return;
+  const selected = ['f-c1','f-c2','f-c3','f-c4']
+    .map(id => document.getElementById(id).value)
+    .filter(Boolean);
+  if (!selected.length) { warn.innerHTML=''; return; }
+
+  const grams = parseFloat(document.getElementById('f-grams').value)||0;
+  const count = parseInt(document.getElementById('f-count').value)||1;
+  const totalG = grams * count;
+
+  warn.innerHTML = selected.map((color, i) => {
+    const perColorG = parseFloat(document.getElementById('f-g'+(i+1)).value)||0;
+    const share = perColorG > 0 ? perColorG * count : (selected.length > 0 ? totalG / selected.length : 0);
+    const f = filaments.find(x => x.color.toLowerCase() === color.toLowerCase());
+    if (!f) return `<div style="font-size:11px;color:var(--t3);">⚠ ${color}: ikke funnet i lager</div>`;
+    const avail = f.storage||0;
+    const enough = avail >= share;
+    const col = enough ? 'var(--green)' : 'var(--red)';
+    const icon = enough ? '✓' : '⚠';
+    return `<div style="font-size:11px;color:${col};">
+      ${icon} ${color}: ${fmt(avail)}g tilgjengelig${share>0 ? ` — trenger ${fmt(share)}g` : ''}
+    </div>`;
+  }).join('');
+}
+
+function buildColorSelects(vals) {
+  const colors = filaments.map(f=>f.color).filter(Boolean).sort();
+  const opts = ['', ...colors].map(c =>
+    `<option value="${c}">${c || '— ingen —'}</option>`
+  ).join('');
+  ['f-c1','f-c2','f-c3','f-c4'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = opts;
+    const v = vals && vals[i] ? vals[i] : '';
+    if ([...el.options].some(o => o.value === v)) el.value = v;
+    else el.value = '';
+  });
+}
+
+function editProject(id) { const p=projects.find(x=>x.id===id); if(p) openProjDrawer(p); }
+function closeProjDrawer() { document.getElementById('dov-proj').classList.remove('open'); }
+
+function saveProject(mode) {
+  const name = document.getElementById('f-name').value.trim();
+  if (!name) { toast('Navn er påkrevd'); return; }
+  const eid = document.getElementById('edit-id').value;
+  const person  = document.getElementById('f-person').value;
+  const project = document.getElementById('f-project').value.trim();
+  const obj = {
+    id: eid ? parseInt(eid) : uid('p'),
+    name, person,
+    count: parseInt(document.getElementById('f-count').value)||1,
+    c1: document.getElementById('f-c1').value,
+    c2: document.getElementById('f-c2').value,
+    c3: document.getElementById('f-c3').value,
+    c4: document.getElementById('f-c4').value,
+    g1: parseFloat(document.getElementById('f-g1').value)||0,
+    g2: parseFloat(document.getElementById('f-g2').value)||0,
+    g3: parseFloat(document.getElementById('f-g3').value)||0,
+    g4: parseFloat(document.getElementById('f-g4').value)||0,
+    hours: 0,
+    grams: parseFloat(document.getElementById('f-grams').value)||0,
+    project,
+    done: eid ? (projects.find(x=>x.id===parseInt(eid))?.done||false) : false,
+    ts: eid ? (projects.find(x=>x.id===parseInt(eid))?.ts||Date.now()) : Date.now(),
+  };
+  if (eid) { const i=projects.findIndex(x=>x.id===parseInt(eid)); if(i>-1) projects[i]=obj; }
+  else projects.push(obj);
+  save(); renderAll();
+
+  if (mode === 'keep-project' || mode === 'keep-person' || mode === 'keep-both') {
+    // Keep modal open, reset fields but keep project or person
+    document.getElementById('edit-id').value = '';
+    document.getElementById('d-proj-title').textContent = 'Nytt prosjekt';
+    document.getElementById('f-name').value = '';
+    document.getElementById('f-count').value = 1;
+    document.getElementById('f-grams').value = '';
+    buildColorSelects([]);
+    if (mode === 'keep-project') {
+      buildPersonSel('Deg');
+    } else if (mode === 'keep-person') {
+      buildPersonSel(person);
+      pickGroup('');
+    } else if (mode === 'keep-both') {
+      buildPersonSel(person);
+      // project stays as-is
+    }
+    document.getElementById('f-name').focus();
+    toast('Lagret ✓ — legg til neste');
+  } else {
+    closeProjDrawer();
+    toast(eid ? 'Oppdatert ✓' : 'Lagt til ✓');
+  }
+}
+
+function toggleDone(id) {
+  const p = projects.find(x=>x.id===id); if(!p) return;
+  if (editingProjId !== null) { editingProjId = null; if(document._ieKeyHandler){document.removeEventListener('keydown',document._ieKeyHandler);document._ieKeyHandler=null;} }
+  p.done = !p.done;
+  if (p.grams > 0 || p.g1 > 0 || p.g2 > 0 || p.g3 > 0 || p.g4 > 0) {
+    const totalG = (p.grams||0) * (p.count||1);
+    const colors = [p.c1,p.c2,p.c3,p.c4].filter(Boolean);
+    const perG   = [p.g1||0, p.g2||0, p.g3||0, p.g4||0];
+    const hasCustomG = perG.some(g=>g>0);
+    filaments.forEach(f => {
+      const idx = colors.findIndex(c => c.toLowerCase().trim() === f.color.toLowerCase().trim());
+      if (idx === -1) return;
+      const share = hasCustomG && perG[idx] > 0 ? perG[idx] * (p.count||1) : totalG / colors.length;
+      if (p.done) {
+        f.storage = Math.max(0, (f.storage||0) - share);
+      } else {
+        f.storage = (f.storage||0) + share;
+      }
+    });
+  }
+  save(); renderAll();
+  toast(p.done ? 'Ferdig! ✓' : 'Satt som aktiv');
+}
+
+function copyProject(id) {
+  const p = projects.find(x=>x.id===id); if(!p) return;
+  const copy = {
+    ...p,
+    id: uid('p'),
+    done: false,
+    ts: Date.now(),
+  };
+  projects.push(copy);
+  save(); renderAll();
+  toast('Kopi lagt til som aktiv ✓');
+}
+
+function deleteProject(id) {
+  if(!confirm('Slette?')) return;
+  projects=projects.filter(x=>x.id!==id); save(); renderAll(); toast('Slettet');
+}
+
+// ── FILAMENT DRAWER ───────────────────────────────────────────────────────────
+function openFilDrawer(f) {
+  document.getElementById('d-fil-title').textContent = f ? 'Rediger filament' : 'Legg til filament';
+  document.getElementById('edit-fil-id').value = f ? f.id : '';
+  document.getElementById('ff-color').value = f ? f.color : '';
+  document.getElementById('ff-type').value = f ? (f.type||'PLA') : 'PLA';
+  document.getElementById('ff-has').value = f ? (f.has||'Nei') : 'Nei';
+  document.getElementById('ff-count').value = f ? (f.count||1) : 1;
+  document.getElementById('ff-per').value = f ? (f.perSpool||1000) : 1000;
+  document.getElementById('ff-used').value = f ? (f.usedG||0) : 0;
+  document.getElementById('ff-will').value = f ? (f.willUse||0) : 0;
+  // Set spool size buttons
+  const per = f ? (f.perSpool||1000) : 1000;
+  document.querySelectorAll('.spool-size-btn').forEach(b => {
+    b.classList.toggle('active', parseInt(b.textContent) === per);
+  });
+  // For new entries: auto-calculate antall * per. For existing: show actual stored value.
+  const initCount = f ? (f.count||1) : 1;
+  const initPer   = f ? (f.perSpool||1000) : 1000;
+  const storEl2 = document.getElementById('ff-storage');
+  storEl2.value = f ? (f.storage||0) : (initCount * initPer);
+  delete storEl2.dataset.manual;
+  document.getElementById('dov-fil').classList.add('open');
+}
+
+function editFilament(id) { const f=filaments.find(x=>x.id===id); if(f) openFilDrawer(f); }
+function closeFilDrawer() { document.getElementById('dov-fil').classList.remove('open'); }
+
+// Close modal only if mousedown AND mouseup both on the overlay (not dragged from inside)
+let _dovDownTarget = null;
+function dovMouseDown(e) { _dovDownTarget = e.target; }
+function dovMouseUp(e, which) {
+  if (e.target === _dovDownTarget && e.target === e.currentTarget) {
+    if (which === 'proj')      closeProjDrawer();
+    if (which === 'fil')       closeFilDrawer();
+    if (which === 'restock')   closeRestock();
+    if (which === 'bulk-proj') closeBulkProjModal();
+    if (which === 'actual') skipActual();
+  }
+  _dovDownTarget = null;
+}
+
+// ── PROJECT GROUP DROPDOWN ───────────────────────────────────────────────────
+function getGroups() {
+  return [...new Set(projects.map(p=>p.project).filter(Boolean))].sort();
+}
+
+function filterGroups(q) {
+  const filtered = getGroups().filter(g => g.toLowerCase().includes(q.toLowerCase()));
+  renderGroupDropdown(filtered, q);
+}
+
+function showGroupDropdown() {
+  renderGroupDropdown(getGroups(), document.getElementById('f-project-input').value);
+}
+
+function hideGroupDropdown() {
+  const dd = document.getElementById('group-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function renderGroupDropdown(list, q) {
+  const dd = document.getElementById('group-dropdown');
+  if (!dd) return;
+  const inp = (document.getElementById('f-project-input').value||'').trim();
+  let rows = list.map(g => `
+    <div style="display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div onclick="pickGroup('${g.replace(/'/g,"\'")}')" style="flex:1;padding:8px 12px;cursor:pointer;font-size:13px;"
+        onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+        onmouseout="this.style.background=''">
+        📁 ${g}
+      </div>
+    </div>`).join('');
+  if (inp && !list.find(g => g.toLowerCase() === inp.toLowerCase())) {
+    rows += `<div onclick="pickGroup('${inp.replace(/'/g,"\'")}');addGroupIfNew('${inp.replace(/'/g,"\'")}');"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--acc);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">
+      + Opprett "${inp}"
+    </div>`;
+  }
+  if (!rows) rows = '<div style="padding:8px 12px;font-size:13px;color:var(--t3);">Ingen grupper ennå</div>';
+  dd.innerHTML = rows;
+  dd.style.display = 'block';
+}
+
+function pickGroup(name) {
+  document.getElementById('f-project').value = name;
+  document.getElementById('f-project-input').value = name;
+  hideGroupDropdown();
+}
+
+function addGroupIfNew(name) {
+  // Groups are derived from projects automatically — nothing to store separately
+  // Just selecting it is enough; it'll appear next time a project uses it
+}
+
+function filterFilColor(q) {
+  const dd = document.getElementById('fil-color-dd');
+  if (!dd) return;
+  const colors = filaments.map(f=>f.color).sort();
+  const filtered = q ? colors.filter(c=>c.toLowerCase().includes(q.toLowerCase())) : colors;
+  let rows = filtered.map(c => {
+    const f = filaments.find(x=>x.color===c);
+    return `<div onmousedown="pickFilColor('${c.replace(/'/g,"\'")}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(255,255,255,0.06);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${css(c)};margin-right:7px;vertical-align:middle;"></span>${c}</span>
+      <span style="color:var(--t3);font-size:11px;">${f ? f.count+' spole'+(f.count>1?'r':'') : ''}</span>
+    </div>`;
+  }).join('');
+  if (q && !colors.find(c=>c.toLowerCase()===q.toLowerCase())) {
+    rows += `<div onmousedown="pickFilColor('${q.replace(/'/g,"\'")}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--acc);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">+ Ny farge "${q}"</div>`;
+  }
+  if (!rows) rows = '<div style="padding:8px 12px;font-size:13px;color:var(--t3);">Ingen farger ennå</div>';
+  dd.innerHTML = rows;
+  dd.style.display = 'block';
+}
+
+function pickFilColor(color) {
+  document.getElementById('ff-color').value = color;
+  hideFilColorDD();
+  // If existing filament, pre-fill fields
+  const f = filaments.find(x=>x.color===color);
+  if (f) {
+    document.getElementById('ff-count').value = f.count||1;
+    document.getElementById('ff-per').value = f.perSpool||1000;
+    // Set spool size buttons
+    document.querySelectorAll('.spool-size-btn').forEach(b => {
+      b.classList.toggle('active', parseInt(b.textContent) === (f.perSpool||1000));
+    });
+    const storEl = document.getElementById('ff-storage');
+    storEl.value = f.storage||0;
+    delete storEl.dataset.manual;
+    // Store id for updating instead of creating new
+    document.getElementById('edit-fil-id').value = f.id;
+    document.getElementById('d-fil-title').textContent = 'Legg til spole — ' + color;
+  } else {
+    document.getElementById('edit-fil-id').value = '';
+    document.getElementById('d-fil-title').textContent = 'Legg til filament';
+  }
+}
+
+function hideFilColorDD() {
+  const dd = document.getElementById('fil-color-dd');
+  if (dd) dd.style.display = 'none';
+}
+
+// ── ACTUAL STATS ─────────────────────────────────────────────────────────────
+function skipActual() {
+  document.getElementById('dov-actual').classList.remove('open');
+  toast('Ferdig! ✓');
+}
+
+function saveActual() {
+  const id = parseInt(document.getElementById('actual-proj-id').value);
+  const p = projects.find(x=>x.id===id);
+  if (p) {
+    const h = parseFloat(document.getElementById('actual-hours').value);
+    const g = parseFloat(document.getElementById('actual-grams').value);
+    if (!isNaN(h) && h > 0) p.actualHours = h;
+    if (!isNaN(g) && g > 0) p.actualGrams = g;
+    save(); renderAll();
+  }
+  document.getElementById('dov-actual').classList.remove('open');
+  toast('Ferdig! ✓');
+}
+
+// ── BULK PROJECT ─────────────────────────────────────────────────────────────
+let bulkProjRowCount = 0;
+
+function openBulkProjModal() {
+  bulkProjRowCount = 0;
+  document.getElementById('bulk-proj-tbody').innerHTML = '';
+  document.getElementById('dov-bulk-proj').classList.add('open');
+  addBulkProjRow();
+}
+
+function closeBulkProjModal() {
+  document.getElementById('dov-bulk-proj').classList.remove('open');
+}
+
+function addBulkProjRow() {
+  const id = bulkProjRowCount++;
+  const personOpts = persons.map(p=>`<option value="${esc(p)}">${esc(p)}</option>`).join('');
+  const colorOpts = ['', ...filaments.map(f=>f.color).sort()].map(c=>`<option value="${esc(c)}">${esc(c)||'—'}</option>`).join('');
+  const tr = document.createElement('tr');
+  tr.id = 'brow-'+id;
+  const s = 'width:100%;font-size:12px;padding:5px 7px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--t1);box-sizing:border-box;';
+  tr.innerHTML = `
+    <td style="padding:4px 5px;"><input type="text" id="bp-name-${id}" placeholder="Navn…" style="${s}" onkeydown="bpEnter(event,'bp-person-${id}')"></td>
+    <td style="padding:4px 5px;"><select id="bp-person-${id}" style="${s}">${personOpts}</select></td>
+    <td style="padding:4px 5px;"><input type="text" inputmode="numeric" id="bp-count-${id}" value="1" style="${s}text-align:right;" onkeydown="bpEnter(event,'bp-color-${id}')"></td>
+    <td style="padding:4px 5px;"><select id="bp-color-${id}" style="${s}">${colorOpts}</select></td>
+    <td style="padding:4px 5px;"><input type="text" inputmode="numeric" id="bp-grams-${id}" placeholder="0" style="${s}text-align:right;" onkeydown="bpEnter(event,'bp-project-${id}')"></td>
+    <td style="padding:4px 5px;"><input type="text" id="bp-project-${id}" placeholder="Prosjekt…" style="${s}" onkeydown="if(event.key==='Enter'){event.preventDefault();addBulkProjRow();}"></td>
+    <td style="padding:4px 3px;text-align:center;"><button onclick="document.getElementById('brow-${id}').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:15px;">✕</button></td>`;
+  document.getElementById('bulk-proj-tbody').appendChild(tr);
+  document.getElementById('bp-name-'+id).focus();
+}
+
+function bpEnter(e, nextId) {
+  if (e.key === 'Enter') { e.preventDefault(); document.getElementById(nextId)?.focus(); }
+}
+
+function saveBulkProj() {
+  const rows = document.getElementById('bulk-proj-tbody').children;
+  let count = 0;
+  for (const row of rows) {
+    const id = row.id.replace('brow-','');
+    const name = (document.getElementById('bp-name-'+id)?.value||'').trim();
+    if (!name) continue;
+    projects.push({
+      id: uid('p'), name,
+      person:  document.getElementById('bp-person-'+id)?.value || 'Deg',
+      count:   parseInt(document.getElementById('bp-count-'+id)?.value)||1,
+      c1:      document.getElementById('bp-color-'+id)?.value || '',
+      c2:'', c3:'', c4:'',
+      hours: 0,
+      grams: parseFloat(document.getElementById('bp-grams-'+id)?.value)||0,
+      project: document.getElementById('bp-project-'+id)?.value.trim()||'',
+      done: false, ts: Date.now(),
+    });
+    count++;
+  }
+  if (!count) { toast('Ingen gyldige rader'); return; }
+  save(); closeBulkProjModal(); renderAll();
+  toast(`${count} prosjekt${count>1?'er':''} lagt til ✓`);
+}
+
+// ── RESTOCK ───────────────────────────────────────────────────────────────────
+let restockRowCount = 0;
+
+function openRestockModal() {
+  restockRowCount = 0;
+  document.getElementById('restock-tbody').innerHTML = '';
+  document.getElementById('dov-restock').classList.add('open');
+  addRestockRow();
+}
+
+function closeRestock() {
+  document.getElementById('dov-restock').classList.remove('open');
+}
+
+function addRestockRow() {
+  const id = restockRowCount++;
+  const tr = document.createElement('tr');
+  tr.id = 'rrow-'+id;
+  const s = 'font-size:13px;padding:6px 8px;background:var(--s2);border:1px solid var(--b2);border-radius:6px;color:var(--t1);box-sizing:border-box;';
+  tr.innerHTML = `
+    <td style="padding:5px 6px;position:relative;">
+      <input type="text" id="rc-${id}" placeholder="Søk farge…" autocomplete="off" style="${s}width:100%;"
+        oninput="filterRestockColors(${id},this.value)"
+        onfocus="filterRestockColors(${id},this.value)"
+        onblur="setTimeout(()=>hideRestockDD(${id}),150)"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('rn-${id}').focus();}">
+      <div id="rdd-${id}" style="display:none;position:absolute;top:100%;left:6px;right:6px;background:#242428;border:1px solid rgba(255,255,255,0.15);border-radius:8px;z-index:300;max-height:150px;overflow-y:auto;box-shadow:0 8px 24px rgba(0,0,0,0.6);"></div>
+    </td>
+    <td style="padding:5px 6px;"><input type="text" inputmode="numeric" id="rn-${id}" value="1" style="${s}width:60px;text-align:right;"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('rper-${id}').focus();}"></td>
+    <td style="padding:5px 6px;">
+      <select id="rper-${id}" style="${s}width:80px;" onchange="updateRestockStorage(${id})"
+        onkeydown="if(event.key==='Enter'){event.preventDefault();document.getElementById('rstor-${id}').focus();}">
+        <option value="1000">1000</option>
+        <option value="3000">3000</option>
+      </select>
+    </td>
+    <td style="padding:5px 6px;"><input type="text" inputmode="numeric" id="rstor-${id}" placeholder="Auto" style="${s}width:80px;text-align:right;"
+      onkeydown="if(event.key==='Enter'){event.preventDefault();addRestockRow();}"></td>
+    <td style="padding:5px 4px;text-align:center;"><button onclick="document.getElementById('rrow-${id}').remove()" style="background:none;border:none;color:var(--red);cursor:pointer;font-size:16px;">✕</button></td>`;
+  document.getElementById('restock-tbody').appendChild(tr);
+  document.getElementById('rc-'+id).focus();
+}
+
+function updateRestockStorage(id) {
+  const n   = parseInt(document.getElementById('rn-'+id).value)||1;
+  const per = parseInt(document.getElementById('rper-'+id).value)||1000;
+  const stor = document.getElementById('rstor-'+id);
+  if (!stor.dataset.manual) stor.value = n * per;
+}
+
+function filterRestockColors(id, q) {
+  const dd = document.getElementById('rdd-'+id);
+  if (!dd) return;
+  const colors = filaments.map(f=>f.color).sort();
+  const filtered = q ? colors.filter(c=>c.toLowerCase().includes(q.toLowerCase())) : colors;
+  let rows = filtered.map(c => {
+    const f = filaments.find(x=>x.color===c);
+    return `<div onmousedown="pickRestockColor(${id},'${c.replace(/'/g,"\\'")}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;display:flex;justify-content:space-between;border-bottom:1px solid rgba(255,255,255,0.06);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${css(c)};margin-right:7px;vertical-align:middle;"></span>${esc(c)}</span>
+      <span style="color:var(--t3);font-size:11px;">${f?f.count+' spole'+(f.count>1?'r':''):'ny'}</span>
+    </div>`;
+  }).join('');
+  if (q && !colors.find(c=>c.toLowerCase()===q.toLowerCase())) {
+    rows += `<div onmousedown="pickRestockColor(${id},'${q.replace(/'/g,"\\'")}')"
+      style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--acc);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">+ Ny farge "${esc(q)}"</div>`;
+  }
+  dd.innerHTML = rows || `<div style="padding:8px 12px;font-size:13px;color:var(--t3);">Ingen treff</div>`;
+  dd.style.display = 'block';
+}
+
+function pickRestockColor(id, color) {
+  document.getElementById('rc-'+id).value = color;
+  hideRestockDD(id);
+  document.getElementById('rn-'+id).focus();
+}
+
+function hideRestockDD(id) {
+  const dd = document.getElementById('rdd-'+id);
+  if (dd) dd.style.display = 'none';
+}
+
+function saveRestock() {
+  const rows = document.getElementById('restock-tbody').children;
+  let count = 0;
+  for (const row of rows) {
+    const id = row.id.replace('rrow-','');
+    const color = (document.getElementById('rc-'+id)?.value||'').trim();
+    const qty   = parseInt(document.getElementById('rn-'+id)?.value)||0;
+    const per   = parseInt(document.getElementById('rper-'+id)?.value)||1000;
+    const storEl = document.getElementById('rstor-'+id);
+    const stor  = storEl?.value ? parseFloat(storEl.value) : qty * per;
+    if (!color || qty <= 0) continue;
+    const f = filaments.find(x => x.color === color);
+    if (f) {
+      f.count      = (f.count||0) + qty;
+      f.origStorage = (f.origStorage||f.storage||0) + stor;
+      f.storage     = (f.storage||0) + stor;
+      f.perSpool    = per;
+    } else {
+      filaments.push({ id:uid('f'), color, type:'PLA', count:qty, has:'Ja', perSpool:per, storage:stor, usedG:0, willUse:0, remaining:stor, orderMore:'nei' });
+    }
+    count++;
+  }
+  if (!count) { toast('Ingen gyldige rader'); return; }
+  save(); closeRestock(); renderAll();
+  toast(`${count} farge${count>1?'r':''} restocket ✓`);
+}
+
+function setSpoolSize(g, btn) {
+  document.getElementById('ff-per').value = g;
+  document.querySelectorAll('.spool-size-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  updateFilStorage();
+}
+
+function updateFilStorage() {
+  const storEl = document.getElementById('ff-storage');
+  // Only auto-calculate if user hasn't manually edited the field
+  if (!storEl.dataset.manual) autoFillStorage();
+}
+
+function autoFillStorage() {
+  const count = parseInt(document.getElementById('ff-count').value) || 0;
+  const per   = parseInt(document.getElementById('ff-per').value) || 1000;
+  document.getElementById('ff-storage').value = count * per;
+}
+
+function onStorageInput() {
+  // Mark as manually edited so antall/per changes don't override it
+  document.getElementById('ff-storage').dataset.manual = '1';
+}
+
+function saveFilament() {
+  const color = document.getElementById('ff-color').value.trim();
+  if (!color) { toast('Farge er påkrevd'); return; }
+  const eid    = document.getElementById('edit-fil-id').value;
+  const f      = eid ? filaments.find(x=>x.id===parseInt(eid)) : null;
+  const has    = document.getElementById('ff-has').value;
+  const count  = parseInt(document.getElementById('ff-count').value)||0;
+  const per    = parseFloat(document.getElementById('ff-per').value)||1000;
+  const storIn = document.getElementById('ff-storage').value;
+  const storage= storIn ? parseFloat(storIn) : count*per;
+  const usedG  = parseFloat(document.getElementById('ff-used').value)||0;
+  const willUse= parseFloat(document.getElementById('ff-will').value)||0;
+  const remaining = Math.max(0, storage - willUse);
+  const orderMore = (remaining < 750 || storage < willUse) ? 'ja' : 'nei';
+  const type = document.getElementById('ff-type').value || 'PLA';
+  const obj = { id: eid?parseInt(eid):uid('f'), color, type, has, count, perSpool:per, storage, usedG, willUse, remaining, orderMore };
+  if (eid) {
+    const i = filaments.findIndex(x=>x.id===parseInt(eid));
+    if (i>-1) {
+      // Check if we came from pickFilColor (restock) vs pencil edit
+      if (document.getElementById('d-fil-title').textContent.startsWith('Legg til spole')) {
+        // Restock: ADD antall and storage to existing
+        filaments[i].count   = (filaments[i].count||0) + count;
+        filaments[i].storage = (filaments[i].storage||0) + storage;
+        filaments[i].perSpool = per;
+      } else {
+        // Normal edit: replace
+        filaments[i] = obj;
+      }
+    }
+  } else filaments.push(obj);
+  save(); closeFilDrawer(); renderFilament();
+  toast(eid?'Oppdatert ✓':'Lagt til ✓');
+}
+
+function deleteFilament(id) {
+  if(!confirm('Slette?')) return;
+  filaments=filaments.filter(x=>x.id!==id); save(); renderFilament(); toast('Slettet');
+}
+
+// ── PERSONS ───────────────────────────────────────────────────────────────────
+function buildPersonSel(sel) {
+  const name = sel || 'Deg';
+  document.getElementById('f-person').value = name;
+  const inp = document.getElementById('f-person-input');
+  if (inp) inp.value = name;
+}
+
+function filterPersons(q) {
+  const filtered = persons.filter(p => p.toLowerCase().includes(q.toLowerCase()));
+  renderPersonDropdown(filtered, q);
+}
+
+function showPersonDropdown() {
+  renderPersonDropdown(persons, document.getElementById('f-person-input').value);
+}
+
+function hidePersonDropdown() {
+  const dd = document.getElementById('person-dropdown');
+  if (dd) dd.style.display = 'none';
+}
+
+function renderPersonDropdown(list, q) {
+  const dd = document.getElementById('person-dropdown');
+  if (!dd) return;
+  const inp = document.getElementById('f-person-input').value.trim();
+  let rows = list.map((p,i) => {
+    const idx = persons.indexOf(p);
+    return `<div style="display:flex;align-items:center;border-bottom:1px solid rgba(255,255,255,0.06);">
+      <div onclick="pickPerson('${esc(p)}')" style="flex:1;padding:8px 12px;cursor:pointer;font-size:13px;"
+        onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+        onmouseout="this.style.background=''">
+        ${esc(p)}
+      </div>
+      ${idx > 0 ? `<button onclick="removePersonDropdown(${idx})" style="padding:6px 10px;background:none;border:none;color:var(--t3);cursor:pointer;font-size:12px;" onmouseover="this.style.color='var(--red)'" onmouseout="this.style.color='var(--t3)'">✕</button>` : ''}
+    </div>`;
+  }).join('');
+  if (inp && !persons.find(p => p.toLowerCase() === inp.toLowerCase())) {
+    rows += `<div onclick="addPersonInline('${esc(inp)}')" style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--acc);"
+      onmouseover="this.style.background='rgba(200,240,96,0.08)'"
+      onmouseout="this.style.background=''">
+      + Legg til "${esc(inp)}"
+    </div>`;
+  }
+  dd.innerHTML = rows || '<div style="padding:8px 12px;font-size:13px;color:var(--t3);">Ingen treff</div>';
+  dd.style.display = 'block';
+}
+
+function removePersonDropdown(idx) {
+  persons.splice(idx, 1);
+  localStorage.setItem('ft_persons', JSON.stringify(persons));
+  // If removed person was selected, reset to Deg
+  const cur = document.getElementById('f-person').value;
+  if (!persons.includes(cur)) pickPerson('Deg');
+  renderPersonDropdown(persons, document.getElementById('f-person-input').value);
+  toast('Person fjernet');
+}
+
+function pickPerson(name) {
+  document.getElementById('f-person').value = name;
+  document.getElementById('f-person-input').value = name;
+  hidePersonDropdown();
+}
+
+function addPersonInline(name) {
+  if (!name || persons.includes(name)) return;
+  persons.push(name);
+  localStorage.setItem('ft_persons', JSON.stringify(persons));
+  pickPerson(name);
+  buildPtags();
+  toast(name + ' lagt til');
+}
+
+function buildPtags() {
+  const el = document.getElementById('ptags');
+  if (!el) return;
+  el.innerHTML = persons.map((p,i)=>`
+    <div class="ptag" onclick="document.getElementById('f-person').value='${esc(p)}'" style="cursor:pointer;" title="Velg ${esc(p)}">
+      ${esc(p)}
+      ${i>0?`<button onclick="event.stopPropagation();removePerson(${i})" title="Fjern">✕</button>`:''}
+    </div>`).join('');
+}
+function renderPtagsG() {
+  document.getElementById('ptags-g').innerHTML =
+    persons.map((p,i)=>`<div class="ptag">${esc(p)}${i>0?`<button onclick="removePersonG(${i})">✕</button>`:''}</div>`).join('');
+}
+function addPerson() { addPersonG(); } // new-person input moved to settings
+function addPersonG() {
+  const v=document.getElementById('new-person-g').value.trim();
+  if(!v||persons.includes(v)){toast('Ugyldig/finnes');return;}
+  persons.push(v); save();
+  document.getElementById('new-person-g').value='';
+  renderPtagsG(); toast(v+' lagt til');
+}
+function removePerson(i){persons.splice(i,1);save();buildPersonSel();buildPtags();}
+function removePersonG(i){persons.splice(i,1);save();renderPtagsG();}
+
+// ── PALETTE ───────────────────────────────────────────────────────────────────
+function buildPalette() { /* palette removed from modal */ }
+function pickColor(h) { /* palette removed from modal */ }
+
+// ── CSV IMPORT ────────────────────────────────────────────────────────────────
+function importCSV(type, input) {
+  const file=input.files[0]; if(!file) return;
+  const lblMap={projects:'lbl-proj', usage:'lbl-usage', filament:'lbl-fil'};
+  const lbl=lblMap[type];
+  document.getElementById(lbl).textContent='⏳ Laster…';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try {
+      const rows=parseCSV(e.target.result);
+      if(rows.length<2){toast('CSV tom eller ugyldig'); return;}
+      // Skip header row, filter blank rows
+      const data=rows.slice(1).filter(r=>r.some(c=>(c||'').trim()));
+      let n=0;
+
+      if(type==='projects') {
+        // Detect format by checking header row
+        // Original sheet: Oppskrift,Til hvem,Antall,Farge 1,Tid(Timer),Total timer,Filament(g),Total Filament,Ferdig?,Ferdig?(reset),Prosjekt
+        // Exported CSV:   Oppskrift,Til hvem,Antall,Farge 1,Farge 2,Farge 3,Farge 4,Tid(Timer),Total timer,Filament(g),Total Filament,Ferdig?,Prosjekt
+        const header = rows[0].map(h=>(h||'').toLowerCase().trim());
+        const hasMultiColors = header.filter(h=>h.startsWith('farge')).length > 1;
+        data.forEach(r=>{
+          const name=(r[0]||'').trim(); if(!name) return;
+          let c1,c2,c3,c4,hours,grams,done,project;
+          if (hasMultiColors) {
+            // Exported format: cols 3,4,5,6=colours, 7=timer, 9=grams, 11=ferdig, 12=prosjekt
+            c1=(r[3]||'').trim(); c2=(r[4]||'').trim(); c3=(r[5]||'').trim(); c4=(r[6]||'').trim();
+            hours=parseFloat(r[7])||0;
+            grams=parseFloat(r[9])||0;
+            done=(r[11]||'').toLowerCase()==='ja';
+            project=(r[12]||'').trim();
+          } else {
+            // Original sheet format: col 3=farge1, 4=timer, 6=grams, 8=ferdig, 10=prosjekt
+            c1=(r[3]||'').trim(); c2=''; c3=''; c4='';
+            hours=parseFloat(r[4])||0;
+            grams=parseFloat(r[6])||0;
+            done=(r[8]||'').toLowerCase()==='ja';
+            project=(r[10]||'').trim();
+          }
+          projects.push({
+            id:uid('p'), name,
+            person:(r[1]||'Deg').trim()||'Deg',
+            count:parseInt(r[2])||1,
+            c1, c2, c3, c4, hours, grams, project, done,
+            ts:Date.now(),
+          }); n++;
+        });
+        // Auto-collect persons from sheet
+        const newP=[...new Set(data.map(r=>(r[1]||'').trim()).filter(Boolean))];
+        newP.forEach(p=>{ if(p&&!persons.includes(p)) persons.push(p); });
+
+      } else if(type==='usage') {
+        // Table3 columns: 0:Filament (colour name), 1:Ct (amount used in g)
+        // This is the usage summary — store as usageSummary
+        usageSummary = {};
+        data.forEach(r=>{
+          const color=(r[0]||'').trim(); if(!color) return;
+          usageSummary[color]=parseFloat(r[1])||0; n++;
+        });
+        localStorage.setItem('ft_usage', JSON.stringify(usageSummary));
+
+      } else if(type==='filament') {
+        // Table4 columns:
+        // 0:Farge, 1:Antall, 2:Brukt(Ja/Nei), 3:Mengde per(g),
+        // 4:Mengde i skap(g), 5:Mengde brukt(g), 6:Mengde kan brukes(g),
+        // 7:Skal bruke(g), 8:Mengde igjen(g), 9:Bestill mer?
+        filaments=[];  // replace with fresh import
+        data.forEach(r=>{
+          const color=(r[0]||'').trim(); if(!color) return;
+          const count   = parseInt(r[1])||0;
+          const brukt   = (r[2]||'Nei').trim();   // Ja/Nei — har du spolen?
+          const perSpool= parseFloat(r[3])||1000;
+          const storage = parseFloat(r[4])||0;
+          const usedG   = parseFloat(r[5])||0;
+                    const willUse = parseFloat(r[7])||0;
+          const remaining=parseFloat(r[8])||0;
+          const orderMore=(r[9]||'').trim().toLowerCase();
+          filaments.push({
+            id:uid('f'), color, count, has:brukt,
+            perSpool, storage, usedG, willUse, remaining, orderMore
+          }); n++;
+        });
+      }
+
+      save(); renderAll();
+      document.getElementById(lbl).textContent=`✅ ${n} rader importert`;
+      const names={projects:'prosjekter',usage:'filament-forbruk',filament:'filamentfarger'};
+      toast(`${n} ${names[type]} importert ✓`);
+    } catch(err) {
+      document.getElementById(lbl).textContent='❌ Feil ved import';
+      toast('Feil: '+err.message);
+      console.error(err);
+    }
+  };
+  reader.readAsText(file,'UTF-8');
+  input.value='';
+}
+
+function parseCSV(txt) {
+  const rows=[]; const lines=txt.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  for (const line of lines) {
+    if(!line.trim()) continue;
+    const row=[]; let cur=''; let inq=false;
+    for (let i=0;i<line.length;i++) {
+      const ch=line[i];
+      if(ch==='"'){if(inq&&line[i+1]==='"'){cur+='"';i++;}else inq=!inq;}
+      else if(ch===','&&!inq){row.push(cur);cur='';}
+      else cur+=ch;
+    }
+    row.push(cur); rows.push(row);
+  }
+  return rows;
+}
+
+// ── JSON BACKUP ───────────────────────────────────────────────────────────────
+function toCSVRow(arr) {
+  return arr.map(v => {
+    const s = String(v === null || v === undefined ? '' : v);
+    if (s.includes(',') || s.includes('"') || s.includes('\n')) return '"' + s.replace(/"/g,'""') + '"';
+    return s;
+  }).join(',');
+}
+
+function downloadCSV(filename, rows) {
+  const csv = rows.map(toCSVRow).join('\n');
+  const blob = new Blob(['﻿'+csv], {type:'text/csv;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+}
+
+function exportCSV(type) {
+  const date = new Date().toISOString().slice(0,10);
+
+  if (type === 'projects' || type === 'all') {
+    const header = ['Oppskrift','Til hvem','Antall','Farge 1','Farge 2','Farge 3','Farge 4','Tid (Timer)','Total timer','Filament (g)','Total Filament','Ferdig?','Prosjekt'];
+    const rows = [header, ...projects.filter(p=>!p.done).map(p => [
+      p.name, p.person, p.count,
+      p.c1||'', p.c2||'', p.c3||'', p.c4||'',
+      p.hours||0, (p.hours||0)*(p.count||1),
+      p.grams||0, (p.grams||0)*(p.count||1),
+      'Nei', p.project||''
+    ])];
+    downloadCSV(`prosjekter-aktive-${date}.csv`, rows);
+  }
+
+  if (type === 'done' || type === 'all') {
+    const header = ['Oppskrift','Til hvem','Antall','Farge 1','Farge 2','Farge 3','Farge 4','Tid (Timer)','Total timer','Filament (g)','Total Filament','Ferdig?','Prosjekt'];
+    const rows = [header, ...projects.filter(p=>p.done).map(p => [
+      p.name, p.person, p.count,
+      p.c1||'', p.c2||'', p.c3||'', p.c4||'',
+      p.hours||0, (p.hours||0)*(p.count||1),
+      p.grams||0, (p.grams||0)*(p.count||1),
+      'Ja', p.project||''
+    ])];
+    downloadCSV(`prosjekter-ferdig-${date}.csv`, rows);
+  }
+
+  if (type === 'filament' || type === 'all') {
+    const header = ['Farge','Antall','Brukt','Mengde per (g)','Mengde i skap (g)','Mengde brukt (g)','Mengde kan brukes (g)','Skal bruke (g)','Mengde igjen (g)','Bestill mer?'];
+    const rows = [header, ...filaments.map(f => [
+      f.color, f.count||0, f.has||'Nei',
+      f.perSpool||1000, f.storage||0,
+      f.usedG||0,
+      f.willUse||0, f.remaining||0,
+      f.orderMore||'nei'
+    ])];
+    downloadCSV(`filament-${date}.csv`, rows);
+  }
+
+  if (type === 'usage' || type === 'all') {
+    const header = ['Filament','Ct'];
+    const rows = [header, ...Object.entries(usageSummary).map(([color, val]) => [color, val])];
+    downloadCSV(`filamentbruk-${date}.csv`, rows);
+  }
+
+  if (type === 'all') toast('4 CSV-filer lastet ned ✓');
+  else toast('Eksportert ✓');
+}
+
+function exportJSON() {
+  const d={projects,filaments,persons,at:new Date().toISOString()};
+  const b=new Blob([JSON.stringify(d,null,2)],{type:'application/json'});
+  const u=URL.createObjectURL(b);
+  const a=document.createElement('a');
+  a.href=u; a.download='filament-backup-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click(); URL.revokeObjectURL(u); toast('Backup lastet ned ✓');
+}
+
+function importJSON(input) {
+  const file=input.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=e=>{
+    try {
+      const d=JSON.parse(e.target.result);
+      if(!confirm('Erstatte eksisterende data med backup?')) return;
+      if(d.projects)  projects=d.projects;
+      if(d.filaments) filaments=d.filaments;
+      if(d.persons)   persons=d.persons;
+      npid=Math.max(...projects.map(p=>p.id),0)+1;
+      nfid=Math.max(...filaments.map(f=>f.id),0)+1;
+      save(); renderAll(); renderPtagsG(); toast('Backup gjenopprettet ✓');
+    } catch(e){toast('Ugyldig fil');}
+  };
+  r.readAsText(file); input.value='';
+}
+
+function clearAll() {
+  if(!confirm('Slette ALT? Kan ikke angres.')) return;
+  projects=[]; filaments=[]; save(); renderAll(); toast('Slettet');
+}
+
+// ── TOAST ─────────────────────────────────────────────────────────────────────
+let tt;
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  clearTimeout(tt); tt=setTimeout(()=>t.classList.remove('show'),2600);
+}
+</script>
+</body>
+</html>
