@@ -686,18 +686,21 @@ function setSBStatus(msg, ok) {
 async function sbPush() {
   const data = JSON.stringify({ projects, filaments, persons, usageSummary, savedAt: new Date().toISOString() });
   try {
-    const res = await fetch(SB_URL + '/rest/v1/data', {
-      method: 'POST',
-      headers: { ...sbHeaders(), 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify({ key: 'main', value: data })
+    // Try update first, then insert if not exists
+    const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main', {
+      method: 'PATCH',
+      headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ value: data })
     });
-    if (res.ok || res.status === 201) {
-      setSBStatus('✓ Lagret ' + new Date().toLocaleTimeString('no'), true);
-    } else {
-      const err = await res.text();
-      setSBStatus('Feil: ' + res.status, false);
-      console.error('Supabase push error:', err);
+    if (res.status === 404 || (await res.json?.()?.length === 0)) {
+      // Row doesn't exist, insert it
+      await fetch(SB_URL + '/rest/v1/data', {
+        method: 'POST',
+        headers: { ...sbHeaders(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ key: 'main', value: data })
+      });
     }
+    setSBStatus('✓ Lagret ' + new Date().toLocaleTimeString('no'), true);
   } catch(e) {
     setSBStatus('Nettverksfeil', false);
     console.error('Supabase push:', e);
@@ -707,11 +710,14 @@ async function sbPush() {
 async function sbPull() {
   try {
     const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main&select=value', {
-      headers: sbHeaders()
+      headers: { ...sbHeaders(), 'Accept': 'application/json' }
     });
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.error('Supabase pull status:', res.status, await res.text());
+      return;
+    }
     const rows = await res.json();
-    if (!rows.length) return;
+    if (!rows || !rows.length) return;
     const data = JSON.parse(rows[0].value);
     if (data.projects)     projects     = data.projects;
     if (data.filaments)    filaments    = data.filaments;
@@ -755,7 +761,7 @@ function autoBackup() {
 window.onload = async () => {
   // Try Supabase first, fall back to localStorage if offline
   try {
-    const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main&select=value', { headers: sbHeaders() });
+    const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main&select=value', { headers: { ...sbHeaders(), 'Accept': 'application/json' } });
     if (res.ok) {
       const rows = await res.json();
       if (rows.length) {
