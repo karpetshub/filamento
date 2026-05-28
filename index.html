@@ -752,15 +752,33 @@ function autoBackup() {
   toast('Daglig backup lastet ned ✓');
 }
 
-window.onload = () => {
-  // One-time cleanup: remove filaments with antall=0
-  const before = filaments.length;
+window.onload = async () => {
+  // Try Supabase first, fall back to localStorage if offline
+  try {
+    const res = await fetch(SB_URL + '/rest/v1/data?key=eq.main&select=value', { headers: sbHeaders() });
+    if (res.ok) {
+      const rows = await res.json();
+      if (rows.length) {
+        const data = JSON.parse(rows[0].value);
+        if (data.projects)     projects     = data.projects;
+        if (data.filaments)    filaments    = data.filaments;
+        if (data.persons)      persons      = data.persons;
+        if (data.usageSummary) usageSummary = data.usageSummary;
+        // Sync to localStorage
+        localStorage.setItem('ft_p', JSON.stringify(projects));
+        localStorage.setItem('ft_f', JSON.stringify(filaments));
+        localStorage.setItem('ft_persons', JSON.stringify(persons));
+        localStorage.setItem('ft_usage', JSON.stringify(usageSummary));
+        setSBStatus('✓ Hentet ' + new Date().toLocaleTimeString('no'), true);
+      }
+    }
+  } catch(e) {
+    console.log('Supabase load failed, using localStorage:', e.message);
+  }
+  // One-time cleanup
   filaments = filaments.filter(f => (f.count||0) > 0);
-  if (filaments.length < before) { save(); }
   renderAll(); renderPtagsG();
-  setTimeout(autoBackup, 1500);
-  // Pull from Supabase on load
-  setTimeout(sbPull, 500);
+  setTimeout(autoBackup, 2000);
 };
 
 function recalcWillUse() {
