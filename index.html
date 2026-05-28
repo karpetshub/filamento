@@ -719,10 +719,10 @@ async function sbPull() {
     const rows = await res.json();
     if (!rows || !rows.length) return;
     const data = JSON.parse(rows[0].value);
-    if (data.projects)     projects     = data.projects;
-    if (data.filaments)    filaments    = data.filaments;
-    if (data.persons)      persons      = data.persons;
-    if (data.usageSummary) usageSummary = data.usageSummary;
+    if (data.projects && data.projects.length > 0)  projects     = data.projects;
+    if (data.filaments && data.filaments.length > 0) filaments    = data.filaments;
+    if (data.persons && data.persons.length > 0)     persons      = data.persons;
+    if (data.usageSummary)                           usageSummary = data.usageSummary;
     localStorage.setItem('ft_p', JSON.stringify(projects));
     localStorage.setItem('ft_f', JSON.stringify(filaments));
     localStorage.setItem('ft_persons', JSON.stringify(persons));
@@ -739,7 +739,10 @@ async function sbPull() {
 let _ghPushTimer = null;
 function scheduleGHPush() {
   clearTimeout(_ghPushTimer);
-  _ghPushTimer = setTimeout(() => sbPush(), 2000);
+  _ghPushTimer = setTimeout(() => {
+    // Only push if we have actual data
+    if (projects.length > 0 || filaments.length > 0) sbPush();
+  }, 2000);
 }
 
 function autoBackup() {
@@ -766,10 +769,10 @@ window.onload = async () => {
       const rows = await res.json();
       if (rows.length) {
         const data = JSON.parse(rows[0].value);
-        if (data.projects)     projects     = data.projects;
-        if (data.filaments)    filaments    = data.filaments;
-        if (data.persons)      persons      = data.persons;
-        if (data.usageSummary) usageSummary = data.usageSummary;
+        if (data.projects && data.projects.length > 0)  projects     = data.projects;
+        if (data.filaments && data.filaments.length > 0) filaments    = data.filaments;
+        if (data.persons && data.persons.length > 0)     persons      = data.persons;
+        if (data.usageSummary)                           usageSummary = data.usageSummary;
         // Sync to localStorage
         localStorage.setItem('ft_p', JSON.stringify(projects));
         localStorage.setItem('ft_f', JSON.stringify(filaments));
